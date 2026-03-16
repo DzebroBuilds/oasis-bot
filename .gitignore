@@ -1,0 +1,45 @@
+# ═══════════════════════════════════════════════════════
+#  OASIS BOT — .gitignore
+#  Protects ALL secrets and sensitive files from GitHub
+# ═══════════════════════════════════════════════════════
+
+# !! SECRETS — NEVER upload these !!
+.env
+*.env
+.env.local
+.env.production
+secrets.json
+config.json
+
+# Kalshi SSL certs (if used)
+*.pem
+*.key
+*.crt
+*.p12
+
+# Daily logs (contain trade data)
+oasis_daily.json
+/tmp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Node (if dashboard uses npm)
+node_modules/

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Oasis Bot — OasisWebAndAI</title>
+<meta name="description" content="Autonomous AI-powered prediction market trader. Built on Kalshi. Developed by OasisWebAndAI, Seattle WA."/>
+<!-- Open Graph for LinkedIn sharing -->
+<meta property="og:title" content="Oasis Bot — Autonomous Kalshi Prediction Trader"/>
+<meta property="og:description" content="AI-powered autonomous trading bot that researches sports prediction markets and places high-confidence trades on Kalshi. Developed by OasisWebAndAI, Seattle WA."/>
+<meta property="og:type" content="website"/>
+<meta property="og:image" content="./og-image.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:      #04080f;
+    --surface: #091018;
+    --border:  #162030;
+    --accent:  #00e5a0;
+    --accent2: #0ea5e9;
+    --text:    #f0f4f8;
+    --muted:   #4a6580;
+    --display: 'Syne', sans-serif;
+    --mono:    'IBM Plex Mono', monospace;
+    --body:    'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: var(--body); overflow-x: hidden; }
+
+  /* Starfield bg */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image: radial-gradient(1px 1px at 10% 20%, rgba(0,229,160,0.3) 0, transparent 0),
+      radial-gradient(1px 1px at 80% 10%, rgba(14,165,233,0.3) 0, transparent 0),
+      radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.15) 0, transparent 0),
+      radial-gradient(1px 1px at 70% 85%, rgba(0,229,160,0.2) 0, transparent 0),
+      radial-gradient(1px 1px at 25% 55%, rgba(255,255,255,0.1) 0, transparent 0),
+      radial-gradient(1px 1px at 90% 45%, rgba(14,165,233,0.25) 0, transparent 0),
+      radial-gradient(1px 1px at 55% 35%, rgba(255,255,255,0.12) 0, transparent 0);
+    pointer-events: none;
+  }
+
+  /* Grid lines */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 32px; position: relative; z-index: 1; }
+
+  /* ── Nav ─────────────────────────────────────────────────── */
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 24px 32px;
+    border-bottom: 1px solid rgba(22,32,48,0.8);
+    position: relative; z-index: 10;
+    max-width: 1100px; margin: 0 auto;
+  }
+  .nav-logo { display: flex; align-items: center; gap: 10px; }
+  .nav-mark {
+    width: 34px; height: 34px; background: var(--accent); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 13px; font-weight: 500; color: #000;
+  }
+  .nav-name { font-family: var(--display); font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; }
+  .nav-links { display: flex; gap: 32px; }
+  .nav-links a { font-size: 0.82rem; color: var(--muted); text-decoration: none; font-family: var(--mono); transition: color .15s; }
+  .nav-links a:hover { color: var(--accent); }
+  .nav-cta {
+    padding: 9px 20px; border-radius: 8px;
+    background: var(--accent); color: #000;
+    font-family: var(--mono); font-size: 0.75rem; font-weight: 500;
+    text-decoration: none; transition: opacity .15s;
+  }
+  .nav-cta:hover { opacity: .85; }
+
+  /* ── Hero ────────────────────────────────────────────────── */
+  .hero {
+    padding: 100px 0 80px;
+    text-align: center;
+  }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(0,229,160,0.08); border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 100px; padding: 6px 16px;
+    font-family: var(--mono); font-size: 0.72rem; color: var(--accent);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 32px;
+    animation: fadeUp .6s ease both;
+  }
+  .live-dot2 { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: pulse2 2s infinite; }
+  @keyframes pulse2 { 0%,100%{opacity:1} 50%{opacity:.4} }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+  .hero h1 {
+    font-family: var(--display); font-size: clamp(3rem, 8vw, 6.5rem);
+    font-weight: 800; line-height: 0.95; letter-spacing: -0.03em;
+    margin-bottom: 28px;
+    animation: fadeUp .7s ease .1s both;
+  }
+  .hero h1 .accent { color: var(--accent); }
+  .hero h1 .dim { color: var(--muted); }
+  .hero-sub {
+    font-size: 1.1rem; color: var(--muted); max-width: 560px; margin: 0 auto 48px;
+    line-height: 1.7; font-weight: 300;
+    animation: fadeUp .7s ease .2s both;
+  }
+  .hero-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; animation: fadeUp .7s ease .3s both; }
+  .btn-primary {
+    padding: 14px 32px; border-radius: 10px;
+    background: var(--accent); color: #000;
+    font-family: var(--mono); font-size: 0.82rem; font-weight: 500;
+    text-decoration: none; transition: all .15s;
+  }
+  .btn-primary:hover { opacity: .85; transform: translateY(-1px); }
+  .btn-secondary {
+    padding: 14px 32px; border-radius: 10px;
+    border: 1px solid var(--border); color: var(--muted);
+    font-family: var(--mono); font-size: 0.82rem;
+    text-decoration: none; transition: all .15s;
+    background: rgba(255,255,255,0.02);
+  }
+  .btn-secondary:hover { border-color: var(--muted); color: var(--text); }
+
+  /* ── Metrics strip ───────────────────────────────────────── */
+  .metrics {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: 16px;
+    overflow: hidden; margin: 80px 0;
+  }
+  .metric {
+    background: var(--surface); padding: 32px 28px;
+    text-align: center;
+  }
+  .metric-val { font-family: var(--display); font-size: 2.5rem; font-weight: 800; color: var(--accent); line-height: 1; }
+  .metric-val.blue { color: var(--accent2); }
+  .metric-val.white { color: var(--text); }
+  .metric-label { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 10px; }
+
+  /* ── How it works ────────────────────────────────────────── */
+  .section-label {
+    font-family: var(--mono); font-size: 0.7rem; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 16px;
+  }
+  .section-title { font-family: var(--display); font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; line-height: 1.1; margin-bottom: 48px; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 100px; }
+  .step {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px 28px;
+    position: relative; overflow: hidden;
+    transition: border-color .2s, transform .2s;
+  }
+  .step:hover { border-color: rgba(0,229,160,0.3); transform: translateY(-3px); }
+  .step::before {
+    content: attr(data-n);
+    position: absolute; top: -10px; right: 20px;
+    font-family: var(--display); font-size: 6rem; font-weight: 800;
+    color: rgba(0,229,160,0.04); line-height: 1;
+    pointer-events: none;
+  }
+  .step-icon { font-size: 1.5rem; margin-bottom: 16px; }
+  .step h3 { font-family: var(--display); font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; }
+  .step p { font-size: 0.85rem; color: var(--muted); line-height: 1.7; }
+
+  /* ── Tech stack ──────────────────────────────────────────── */
+  .tech-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 100px; }
+  .tech-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 24px 28px;
+    display: flex; align-items: flex-start; gap: 16px;
+  }
+  .tech-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .tech-dot.green  { background: var(--accent); }
+  .tech-dot.blue   { background: var(--accent2); }
+  .tech-dot.amber  { background: #f59e0b; }
+  .tech-dot.purple { background: #a855f7; }
+  .tech-name { font-family: var(--mono); font-size: 0.85rem; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+  .tech-desc { font-size: 0.8rem; color: var(--muted); line-height: 1.6; }
+  .free-tag { display: inline-block; padding: 1px 8px; border-radius: 4px; font-family: var(--mono); font-size: 0.65rem; color: var(--accent); background: rgba(0,229,160,0.1); margin-left: 8px; }
+
+  /* ── CTA section ─────────────────────────────────────────── */
+  .cta-block {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 24px; padding: 64px; text-align: center;
+    margin-bottom: 80px; position: relative; overflow: hidden;
+  }
+  .cta-block::before {
+    content: '';
+    position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(0,229,160,0.06) 0, transparent 70%);
+    pointer-events: none;
+  }
+  .cta-block h2 { font-family: var(--display); font-size: 2.5rem; font-weight: 800; margin-bottom: 16px; }
+  .cta-block p { color: var(--muted); font-size: 1rem; margin-bottom: 36px; max-width: 480px; margin-left: auto; margin-right: auto; }
+  .github-link {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 32px; border-radius: 10px;
+    background: var(--accent); color: #000;
+    font-family: var(--mono); font-size: 0.85rem; font-weight: 500;
+    text-decoration: none; transition: opacity .15s;
+  }
+  .github-link:hover { opacity: .85; }
+
+  /* ── Footer ──────────────────────────────────────────────── */
+  footer {
+    padding: 32px 0; border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 16px;
+  }
+  .footer-left { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+  .footer-left strong { color: var(--accent); }
+  .social-links { display: flex; gap: 20px; }
+  .social-links a { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); text-decoration: none; transition: color .15s; }
+  .social-links a:hover { color: var(--accent); }
+
+  @media (max-width: 768px) {
+    .metrics { grid-template-columns: repeat(2,1fr); }
+    .steps { grid-template-columns: 1fr; }
+    .tech-grid { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+    .cta-block { padding: 40px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div style="position:relative;z-index:1">
+  <nav>
+    <div class="nav-logo">
+      <div class="nav-mark">OA</div>
+      <div class="nav-name">OASIS</div>
+    </div>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#stack">Tech stack</a>
+      <a href="#dashboard">Dashboard</a>
+    </div>
+    <a href="https://github.com" class="nav-cta">View on GitHub →</a>
+  </nav>
+
+  <div class="container">
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-eyebrow"><div class="live-dot2"></div>Now live on Kalshi</div>
+      <h1>Meet<br/><span class="accent">Oasis</span><span class="dim">.</span></h1>
+      <p class="hero-sub">An autonomous AI trading bot that researches sports prediction markets, scores confidence 0–100, and only places trades when it's 90% sure.</p>
+      <div class="hero-ctas">
+        <a href="https://github.com" class="btn-primary">GitHub Repo →</a>
+        <a href="./index.html" class="btn-secondary">Live Dashboard</a>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-val">90%+</div>
+        <div class="metric-label">Min confidence to trade</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val blue">$0</div>
+        <div class="metric-label">Monthly infra cost</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val white">6hr</div>
+        <div class="metric-label">Auto-scan frequency</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">100%</div>
+        <div class="metric-label">Autonomous operation</div>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <div id="how">
+      <div class="section-label">How it works</div>
+      <div class="section-title">Six steps, zero manual effort.</div>
+      <div class="steps">
+        <div class="step" data-n="01">
+          <div class="step-icon">⏰</div>
+          <h3>Scheduled scan</h3>
+          <p>GitHub Actions fires Oasis every 6 hours automatically. No server needed — runs entirely on GitHub's free tier.</p>
+        </div>
+        <div class="step" data-n="02">
+          <div class="step-icon">🔍</div>
+          <h3>Market discovery</h3>
+          <p>Oasis queries all open Kalshi sports markets closing in the next 48 hours across every major league.</p>
+        </div>
+        <div class="step" data-n="03">
+          <div class="step-icon">🧠</div>
+          <h3>AI research</h3>
+          <p>Gemini Flash analyzes each matchup — recent form, H2H, injuries, home advantage, and market pricing edge.</p>
+        </div>
+        <div class="step" data-n="04">
+          <div class="step-icon">📊</div>
+          <h3>Confidence scoring</h3>
+          <p>Every pick is scored 0–100. Only picks scoring 90%+ with a 10+ point market edge qualify for trading.</p>
+        </div>
+        <div class="step" data-n="05">
+          <div class="step-icon">💰</div>
+          <h3>Autonomous trade</h3>
+          <p>Qualifying picks are placed directly on Kalshi via the REST API, with daily spend caps enforced automatically.</p>
+        </div>
+        <div class="step" data-n="06">
+          <div class="step-icon">📱</div>
+          <h3>Instant alerts</h3>
+          <p>Every trade, win, and loss fires a Telegram notification in real time. Full P&L tracked on the live dashboard.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tech stack -->
+    <div id="stack">
+      <div class="section-label">Technology</div>
+      <div class="section-title">Built entirely on free APIs.</div>
+      <div class="tech-grid">
+        <div class="tech-card">
+          <div class="tech-dot green"></div>
+          <div>
+            <div class="tech-name">Google Gemini Flash <span class="free-tag">FREE</span></div>
+            <div class="tech-desc">AI research engine. 1,500 free requests/day via Google AI Studio. Analyzes each matchup across 9 data points and returns a structured confidence score.</div>
+          </div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-dot blue"></div>
+          <div>
+            <div class="tech-name">Kalshi API</div>
+            <div class="tech-desc">CFTC-regulated prediction market. Oasis uses the official REST API to browse markets, check prices, and place limit orders programmatically. Legal in Washington state.</div>
+          </div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-dot amber"></div>
+          <div>
+            <div class="tech-name">GitHub Actions <span class="free-tag">FREE</span></div>
+            <div class="tech-desc">Serverless scheduler. Runs the full agent on a cron schedule every 6 hours with zero infrastructure cost. Secrets stored in encrypted GitHub vault.</div>
+          </div>
+        </div>
+        <div class="tech-card">
+          <div class="tech-dot purple"></div>
+          <div>
+            <div class="tech-name">Telegram Bot API <span class="free-tag">FREE</span></div>
+            <div class="tech-desc">Real-time push alerts to your phone for every trade placed, won, or lost. Daily summary delivered each morning with full session stats.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta-block">
+      <h2>Deploy Oasis today.</h2>
+      <p>Clone the repo, add 4 free API keys as GitHub Secrets, and the bot runs itself. Start in paper mode — go live when you're ready.</p>
+      <a href="https://github.com" class="github-link">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.165 6.839 9.489.5.09.683-.216.683-.48v-1.68c-2.78.603-3.369-1.34-3.369-1.34-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.07-.607.07-.607 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.647.35-1.087.636-1.337-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.03-2.682-.103-.253-.447-1.27.098-2.646 0 0 .84-.268 2.75 1.026A9.578 9.578 0 0112 6.836a9.59 9.59 0 012.504.337c1.909-1.294 2.748-1.026 2.748-1.026.546 1.376.202 2.394.1 2.646.64.699 1.026 1.591 1.026 2.682 0 3.841-2.337 4.687-4.565 4.935.359.309.678.919.678 1.852v2.744c0 .268.18.576.688.48C19.138 20.16 22 16.416 22 12c0-5.523-4.477-10-10-10z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+
+    <footer>
+      <div class="footer-left">Built by <strong>OasisWebAndAI</strong> · Seattle, Washington</div>
+      <div class="social-links">
+        <a href="#">LinkedIn</a>
+        <a href="#">GitHub</a>
+        <a href="#">Twitter / X</a>
+        <a href="./index.html">Dashboard</a>
+      </div>
+    </footer>
+  </div>
+</div>
+</body>
+</html>
