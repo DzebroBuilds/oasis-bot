@@ -28,8 +28,6 @@ if missing:
     raise SystemExit(f"OASIS: Missing secrets: {', '.join(missing)}\n  Local: add to .env file\n  GitHub: add in Settings → Secrets → Actions")
 
 GEMINI_API_KEY   = os.environ["GEMINI_API_KEY"]
-KALSHI_EMAIL     = os.environ["KALSHI_EMAIL"]
-KALSHI_PASSWORD  = os.environ["KALSHI_PASSWORD"]
 TELEGRAM_TOKEN   = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 PAPER_MODE       = os.environ.get("PAPER_MODE","true").lower() == "true"
