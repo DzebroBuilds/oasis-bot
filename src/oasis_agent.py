@@ -86,19 +86,17 @@ class KalshiClient:
     def __init__(self):
         self.session = requests.Session()
 
-    def login(self) -> bool:
-        """Authenticate using API key — bypasses MFA entirely"""
-        self.session.headers.update({
-            "Authorization": f"Bearer {KALSHI_API_KEY}",
-            "Content-Type": "application/json"
-        })
-        # Verify the key works with a test call
-        r = self.session.get(f"{KALSHI_BASE}/portfolio/balance", timeout=10)
-        if r.status_code == 200:
-            log.info("Kalshi API key auth OK")
-            return True
-        log.error(f"Kalshi API key auth failed: {r.status_code} — {r.text}")
-        return False
+   def login(self) -> bool:
+    self.session.headers.update({
+        "KALSHI-ACCESS-KEY": KALSHI_API_KEY,
+        "Content-Type": "application/json"
+    })
+    r = self.session.get(f"{KALSHI_BASE}/portfolio/balance", timeout=10)
+    if r.status_code == 200:
+        log.info("Kalshi API key auth OK")
+        return True
+    log.error(f"Kalshi API key auth failed: {r.status_code} — {r.text}")
+    return False
 
     def get_balance(self) -> float:
         r = self.session.get(f"{KALSHI_BASE}/portfolio/balance", timeout=10)
