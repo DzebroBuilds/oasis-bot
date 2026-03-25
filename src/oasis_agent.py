@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | OASIS | %(levelnam
 log = logging.getLogger("oasis")
 
 # ── Validate secrets ──────────────────────────────────────────────────────────
+# Updated to require KALSHI_API_KEY as per your new setup
 REQUIRED = ["GEMINI_API_KEY", "KALSHI_API_KEY", "TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID"]
 missing = [k for k in REQUIRED if not os.environ.get(k)]
 if missing:
@@ -86,17 +87,17 @@ class KalshiClient:
     def __init__(self):
         self.session = requests.Session()
 
-   def login(self) -> bool:
-    self.session.headers.update({
-        "KALSHI-ACCESS-KEY": KALSHI_API_KEY,
-        "Content-Type": "application/json"
-    })
-    r = self.session.get(f"{KALSHI_BASE}/portfolio/balance", timeout=10)
-    if r.status_code == 200:
-        log.info("Kalshi API key auth OK")
-        return True
-    log.error(f"Kalshi API key auth failed: {r.status_code} — {r.text}")
-    return False
+    def login(self) -> bool:
+        self.session.headers.update({
+            "KALSHI-ACCESS-KEY": KALSHI_API_KEY,
+            "Content-Type": "application/json"
+        })
+        r = self.session.get(f"{KALSHI_BASE}/portfolio/balance", timeout=10)
+        if r.status_code == 200:
+            log.info("Kalshi API key auth OK")
+            return True
+        log.error(f"Kalshi API key auth failed: {r.status_code} — {r.text}")
+        return False
 
     def get_balance(self) -> float:
         r = self.session.get(f"{KALSHI_BASE}/portfolio/balance", timeout=10)
@@ -170,17 +171,21 @@ LOG_PATH = "/tmp/oasis_daily.json"
 
 def load_daily() -> dict:
     try:
-        with open(LOG_PATH) as f:
-            d = json.load(f)
-        if d.get("date") == datetime.now(timezone.utc).strftime("%Y-%m-%d"):
-            return d
-    except:
+        if os.path.exists(LOG_PATH):
+            with open(LOG_PATH) as f:
+                d = json.load(f)
+            if d.get("date") == datetime.now(timezone.utc).strftime("%Y-%m-%d"):
+                return d
+    except Exception:
         pass
     return {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "spent": 0.0, "trades": [], "scanned": 0}
 
 def save_daily(d: dict):
-    with open(LOG_PATH, "w") as f:
-        json.dump(d, f, indent=2)
+    try:
+        with open(LOG_PATH, "w") as f:
+            json.dump(d, f, indent=2)
+    except Exception as e:
+        log.error(f"Failed to save daily log: {e}")
 
 def safe_to_trade(spend: float, daily: dict) -> tuple:
     if daily["spent"] >= MAX_DAILY_SPEND:
