@@ -2,10 +2,8 @@ name: OASIS — Auto Scan & Trade
 
 on:
   schedule:
-    #  Seattle (PT) schedule:
-    #  10pm, 4am, 10am, 4pm PT  (= 6am, 12pm, 6pm, midnight UTC)
     - cron: '0 6,12,18,0 * * *'
-  workflow_dispatch:   # Manual trigger from GitHub UI anytime
+  workflow_dispatch:
 
 jobs:
   oasis-run:
@@ -28,17 +26,8 @@ jobs:
       - name: Run Oasis Agent
         env:
           GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
-          KALSHI_EMAIL:     ${{ secrets.KALSHI_EMAIL }}
-          KALSHI_PASSWORD:  ${{ secrets.KALSHI_PASSWORD }}
+          KALSHI_API_KEY:   ${{ secrets.KALSHI_API_KEY }}
           TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAPER_MODE:       ${{ secrets.PAPER_MODE }}
         run: python src/oasis_agent.py
-
-      - name: Upload daily log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: oasis-daily-log-${{ github.run_id }}
-          path: /tmp/oasis_daily.json
-          if-no-files-found: ignore
