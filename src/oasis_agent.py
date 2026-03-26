@@ -39,9 +39,8 @@ UNIT_SIZE            = 10
 MAX_DAILY_SPEND      = 100
 MAX_PER_CONTRACT     = 40
 
-# CRITICAL FIX: The official Kalshi Production URL. 
-# We use this even in PAPER_MODE because your API key was created on production.
-# PAPER_MODE safely intercepts the trade locally before sending it.
+# We use the Production API because your key was generated on the main Kalshi site.
+# PAPER_MODE safely prevents the actual trade execution locally.
 KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 
 # ── Gemini AI ────────────────────────────────────────────────────────────────
@@ -129,22 +128,51 @@ class KalshiClient:
         return r.json().get("balance", 0) / 100 if r.status_code == 200 else 0.0
 
     def get_sports_markets(self) -> list:
-        KEYWORDS = ["NFL","NBA","NHL","MLB","NCAA","SOCCER","UFC","MMA","TENNIS","GOLF"]
+        # Expanded keywords to catch more events
+        KEYWORDS = ["NFL","NBA","NHL","MLB","NCAA","SOCCER","UFC","MMA","TENNIS","GOLF","BASKETBALL","BASEBALL","HOCKEY","FIGHTS"]
         all_markets = []
         now = datetime.now(timezone.utc)
-        cutoff = now + timedelta(hours=48)
+        # Look up to 7 days into the future to ensure we find targets
+        cutoff = now + timedelta(days=7) 
+        cursor = None
 
-        r = self.request("GET", "/markets", params={"status": "open", "limit": 200})
-        if r.status_code == 200:
+        log.info("Scanning Kalshi order book for sports...")
+        
+        while True:
+            params = {"status": "open", "limit": 1000}
+            if cursor:
+                params["cursor"] = cursor
+                
+            r = self.request("GET", "/markets", params=params)
+            if r.status_code != 200:
+                log.error(f"Market fetch failed: {r.text}")
+                break
+                
             data = r.json()
-            for m in data.get("markets", []):
+            markets_batch = data.get("markets", [])
+            
+            for m in markets_batch:
                 title = m.get("title", "").upper()
-                is_sports = any(k in title for k in KEYWORDS) or m.get("category", "").upper() == "SPORTS"
+                category = m.get("category", "").upper()
+                
+                # Check if it's a sports market
+                is_sports = any(k in title for k in KEYWORDS) or "SPORT" in category
+                
                 try:
                     close_dt = datetime.fromisoformat(m.get("close_time", "").replace("Z", "+00:00"))
                     if is_sports and now < close_dt <= cutoff:
                         all_markets.append(m)
-                except: pass
+                except Exception:
+                    pass
+            
+            # Check if there is another page of markets
+            cursor = data.get("cursor")
+            if not cursor:
+                break
+                
+            time.sleep(0.2) # Prevent rate-limiting
+
+        log.info(f"Found {len(all_markets)} qualifying sports markets.")
         return all_markets
 
     def place_trade(self, ticker: str, side: str, count: int, price_cents: int) -> dict:
