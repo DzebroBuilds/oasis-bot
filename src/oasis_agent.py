@@ -91,7 +91,7 @@ class KalshiClient:
             msg.encode('utf-8'),
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.DIGEST_LENGTH  # Strict Kalshi REST API requirement
+                salt_length=32  # SHA-256 hash length requirement for Kalshi
             ),
             hashes.SHA256()
         )
