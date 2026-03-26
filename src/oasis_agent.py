@@ -83,14 +83,16 @@ class KalshiClient:
 
     def sign_request(self, timestamp, method, path):
         """Generates the KALSHI-ACCESS-SIGNATURE for V2 API"""
-        # Ensure query parameters are stripped for the signature message
+        # Strip query parameters from the path for the signature message
         path_without_query = path.split('?')[0]
         msg = f"{timestamp}{method}{path_without_query}"
         
-        # REST API requires PKCS1v15 padding
         signature = self.private_key.sign(
             msg.encode('utf-8'),
-            padding.PKCS1v15(),
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.DIGEST_LENGTH  # Strict Kalshi REST API requirement
+            ),
             hashes.SHA256()
         )
         return base64.b64encode(signature).decode('utf-8')
