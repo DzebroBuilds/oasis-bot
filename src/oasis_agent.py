@@ -5,7 +5,7 @@
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
-import os, json, time, logging, requests, base64
+import os, json, time, logging, requests, base64, sys
 from datetime import datetime, timezone, timedelta
 from google import genai
 from cryptography.hazmat.primitives import hashes, serialization
@@ -34,13 +34,15 @@ TELEGRAM_TOKEN     = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
 PAPER_MODE         = os.environ.get("PAPER_MODE", "true").lower() == "true"
 
-CONFIDENCE_THRESHOLD = 90
-UNIT_SIZE            = 10
-MAX_DAILY_SPEND      = 100
-MAX_PER_CONTRACT     = 40
+# MACRO TRADING THRESHOLDS
+CONFIDENCE_THRESHOLD = 93  
+UNIT_SIZE            = 15  
+MAX_DAILY_SPEND      = 150
+MAX_PER_CONTRACT     = 60
 
-# We use the Production API because your key was generated on the main Kalshi site.
-# PAPER_MODE safely prevents the actual trade execution locally.
+# EXHAUSTION SAFEGUARDS
+MAX_MARKETS_PER_RUN = 30 # Never analyze more than 30 markets at a time
+
 KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 
 # ── Gemini AI ────────────────────────────────────────────────────────────────
@@ -53,16 +55,24 @@ def research_market(market: dict) -> dict:
     ticker     = market.get("ticker", "")
     close_time = market.get("close_time", "")
 
-    prompt = f"""You are OASIS, an elite autonomous prediction market analyst.
-Analyze this Kalshi market:
+    prompt = f"""You are OASIS, an elite quantitative macro analyst and momentum trader.
+Your goal is to extract small, high-probability wins from Crypto, Economic, and Political prediction markets. 
+
+STRATEGY GUIDELINES:
+1. CRYPTO: Look for spot-price lag. If Bitcoin/Ethereum is currently surging but the Kalshi contract price hasn't caught up, buy the momentum.
+2. POLITICS/ECONOMICS: Look for "Mean Reversion" (irrational emotional sell-offs by retail traders) or "Polling Arbitrage" (where statistical math guarantees an outcome but the contract is underpriced).
+3. Do NOT gamble on 50/50 coin tosses. You are looking for statistical certainty, irrational public fear, or mathematical edge.
+
 MARKET: {title}
 DETAIL: {subtitle}
 TICKER: {ticker}
 CLOSE:  {close_time}
 YES:    {yes_price}¢
+
+Evaluate the true probability of this outcome.
 RESPOND JSON ONLY:
-If trading: {{"skip":false,"side":"YES","confidence":93,"market_price":{yes_price},"edge":23,"units":2,"reasoning":"...","ticker":"{ticker}"}}
-If skipping: {{"skip":true,"reason":"..."}}"""
+If a high-probability arbitrage/momentum trade exists: {{"skip":false,"side":"YES","confidence":95,"market_price":{yes_price},"edge":12,"units":2,"reasoning":"<short rationale>","ticker":"{ticker}"}}
+If it lacks edge, is too volatile, or is a pure gamble: {{"skip":true,"reason":"Too volatile/No edge"}}"""
 
     try:
         r = ai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
@@ -71,22 +81,25 @@ If skipping: {{"skip":true,"reason":"..."}}"""
         result["market"] = market
         return result
     except Exception as e:
-        log.error(f"AI error on {ticker}: {e}")
-        return {"skip": True, "reason": f"AI error: {e}", "market": market}
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            # If we hit the rate limit, return a specific "exhausted" flag so the bot knows to stop entirely.
+            log.error(f"🛑 Gemini Free Tier exhausted! Safely shutting down AI analysis to prevent API lock.")
+            return {"skip": True, "exhausted": True, "market": market}
+        else:
+            log.error(f"AI error on {ticker}: {e}")
+            return {"skip": True, "reason": f"AI error: {e}", "market": market}
 
 # ── Kalshi Authenticated Client (RSA V2) ─────────────────────────────────────
 class KalshiClient:
     def __init__(self):
         self.session = requests.Session()
-        # Load the RSA Private Key from your GitHub Secret
         self.private_key = serialization.load_pem_private_key(
             KALSHI_PRIVATE_KEY.encode(), 
             password=None
         )
 
     def sign_request(self, timestamp, method, path):
-        """Generates the KALSHI-ACCESS-SIGNATURE for V2 API"""
-        # Strip query parameters from the path for the signature message
         path_without_query = path.split('?')[0]
         msg = f"{timestamp}{method}{path_without_query}"
         
@@ -94,14 +107,13 @@ class KalshiClient:
             msg.encode('utf-8'),
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.MAX_LENGTH # Official Kalshi Python SDK standard
+                salt_length=padding.PSS.MAX_LENGTH
             ),
             hashes.SHA256()
         )
         return base64.b64encode(signature).decode('utf-8')
 
     def request(self, method, endpoint, params=None, json_data=None):
-        """Helper to inject required RSA auth headers into every request"""
         timestamp = str(int(time.time() * 1000))
         full_path = f"/trade-api/v2{endpoint}"
         
@@ -127,16 +139,16 @@ class KalshiClient:
         r = self.request("GET", "/portfolio/balance")
         return r.json().get("balance", 0) / 100 if r.status_code == 200 else 0.0
 
-    def get_sports_markets(self) -> list:
-        # Expanded keywords to catch more events
-        KEYWORDS = ["NFL","NBA","NHL","MLB","NCAA","SOCCER","UFC","MMA","TENNIS","GOLF","BASKETBALL","BASEBALL","HOCKEY","FIGHTS"]
+    def get_target_markets(self) -> list:
+        # HUNTING FOR CRYPTO, ECONOMICS, AND POLITICS
+        KEYWORDS = ["BTC", "ETH", "CRYPTO", "BITCOIN", "ETHEREUM", "ELECTION", "POLITICS", "SENATE", "HOUSE", "ECONOMICS", "INFLATION", "CPI", "FED"]
         all_markets = []
         now = datetime.now(timezone.utc)
-        # Look up to 7 days into the future to ensure we find targets
+        
         cutoff = now + timedelta(days=7) 
         cursor = None
 
-        log.info("Scanning Kalshi order book for sports...")
+        log.info("Scanning Kalshi order book for Crypto & Political markets...")
         
         while True:
             params = {"status": "open", "limit": 1000}
@@ -155,24 +167,28 @@ class KalshiClient:
                 title = m.get("title", "").upper()
                 category = m.get("category", "").upper()
                 
-                # Check if it's a sports market
-                is_sports = any(k in title for k in KEYWORDS) or "SPORT" in category
+                is_target = any(k in title for k in KEYWORDS) or category in ["CRYPTO", "POLITICS", "ECONOMICS"]
                 
                 try:
                     close_dt = datetime.fromisoformat(m.get("close_time", "").replace("Z", "+00:00"))
-                    if is_sports and now < close_dt <= cutoff:
+                    if is_target and now < close_dt <= cutoff:
                         all_markets.append(m)
                 except Exception:
                     pass
             
-            # Check if there is another page of markets
             cursor = data.get("cursor")
             if not cursor:
                 break
                 
-            time.sleep(0.2) # Prevent rate-limiting
+            time.sleep(0.2) 
 
-        log.info(f"Found {len(all_markets)} qualifying sports markets.")
+        log.info(f"Found {len(all_markets)} qualifying macro markets.")
+        
+        # Limit the number of markets returned to save Gemini API calls
+        if len(all_markets) > MAX_MARKETS_PER_RUN:
+             log.info(f"Trimming to top {MAX_MARKETS_PER_RUN} markets to protect API limits.")
+             return all_markets[:MAX_MARKETS_PER_RUN]
+             
         return all_markets
 
     def place_trade(self, ticker: str, side: str, count: int, price_cents: int) -> dict:
@@ -237,18 +253,21 @@ def run():
     balance = kalshi.get_balance()
     log.info(f"Connected! Balance: ${balance:.2f}")
 
-    markets = kalshi.get_sports_markets()
+    markets = kalshi.get_target_markets()
     if not markets:
-        telegram("🔍 <b>OASIS</b>: No qualifying sports markets")
+        telegram("🔍 <b>OASIS</b>: No qualifying macro markets found")
         return
-
-    log.info(f"Found {len(markets)} markets. Analyzing with Gemini (this will take a few minutes)...")
 
     for market in markets:
         ticker = market.get("ticker", "Unknown")
         log.info(f"🧠 Asking Gemini to research {ticker}...")
         
         pick = research_market(market)
+        
+        # Check if the AI gracefully threw the exhaustion flag
+        if pick.get("exhausted"):
+            log.info("Ending run early to preserve API key.")
+            break
         
         if not pick.get("skip") and pick.get("confidence", 0) >= CONFIDENCE_THRESHOLD:
             price = pick["market_price"]
@@ -263,12 +282,12 @@ def run():
             result = kalshi.place_trade(ticker, pick["side"], contracts, price)
             if "error" not in result:
                 daily["spent"] += actual
-                telegram(f"🟢 <b>OASIS Trade Placed</b>\n{ticker}\nSide: {pick['side']} | ${actual}")
+                telegram(f"🟢 <b>OASIS Trade Placed</b>\n{ticker}\nSide: {pick['side']} | ${actual}\nReason: {pick.get('reasoning', 'No reason provided.')}")
             else:
                 log.error(f"Trade failed: {result}")
         
-        # CRITICAL FIX: Sleep for 4.5 seconds to stay under the Gemini Free Tier limit (15 requests/minute)
-        time.sleep(4.5) 
+        # Gentle pacing between requests
+        time.sleep(6) 
     
     save_daily(daily)
 
