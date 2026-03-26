@@ -39,11 +39,10 @@ UNIT_SIZE            = 10
 MAX_DAILY_SPEND      = 100
 MAX_PER_CONTRACT     = 40
 
-# CRITICAL FIX: Direct demo keys to the demo API, production keys to production API
-if PAPER_MODE:
-    KALSHI_BASE = "https://demo-api.kalshi.co/trade-api/v2"
-else:
-    KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
+# CRITICAL FIX: The official Kalshi Production URL. 
+# We use this even in PAPER_MODE because your API key was created on production.
+# PAPER_MODE safely intercepts the trade locally before sending it.
+KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 
 # ── Gemini AI ────────────────────────────────────────────────────────────────
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -92,12 +91,11 @@ class KalshiClient:
         path_without_query = path.split('?')[0]
         msg = f"{timestamp}{method}{path_without_query}"
         
-        # Exact Kalshi Syntax: padding.PSS.DIGEST_LENGTH
         signature = self.private_key.sign(
             msg.encode('utf-8'),
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.DIGEST_LENGTH
+                salt_length=padding.PSS.MAX_LENGTH # Official Kalshi Python SDK standard
             ),
             hashes.SHA256()
         )
