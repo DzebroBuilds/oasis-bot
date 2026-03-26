@@ -38,7 +38,12 @@ CONFIDENCE_THRESHOLD = 90
 UNIT_SIZE            = 10
 MAX_DAILY_SPEND      = 100
 MAX_PER_CONTRACT     = 40
-KALSHI_BASE          = "https://trading-api.kalshi.com/trade-api/v2"
+
+# CRITICAL FIX: Direct demo keys to the demo API, production keys to production API
+if PAPER_MODE:
+    KALSHI_BASE = "https://demo-api.kalshi.co/trade-api/v2"
+else:
+    KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 
 # ── Gemini AI ────────────────────────────────────────────────────────────────
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -87,11 +92,12 @@ class KalshiClient:
         path_without_query = path.split('?')[0]
         msg = f"{timestamp}{method}{path_without_query}"
         
+        # Exact Kalshi Syntax: padding.PSS.DIGEST_LENGTH
         signature = self.private_key.sign(
             msg.encode('utf-8'),
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=32  # SHA-256 hash length requirement for Kalshi
+                salt_length=padding.PSS.DIGEST_LENGTH
             ),
             hashes.SHA256()
         )
