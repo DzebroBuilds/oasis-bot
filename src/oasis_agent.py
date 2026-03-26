@@ -87,12 +87,10 @@ class KalshiClient:
         path_without_query = path.split('?')[0]
         msg = f"{timestamp}{method}{path_without_query}"
         
+        # REST API requires PKCS1v15 padding
         signature = self.private_key.sign(
             msg.encode('utf-8'),
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.MAX_LENGTH
-            ),
+            padding.PKCS1v15(),
             hashes.SHA256()
         )
         return base64.b64encode(signature).decode('utf-8')
@@ -183,6 +181,15 @@ def load_daily() -> dict:
 def save_daily(d: dict):
     with open(LOG_PATH, "w") as f: json.dump(d, f, indent=2)
 
+def safe_to_trade(spend: float, daily: dict) -> tuple:
+    if daily["spent"] >= MAX_DAILY_SPEND:
+        return False, f"Daily cap hit (${MAX_DAILY_SPEND})"
+    if daily["spent"] + spend > MAX_DAILY_SPEND:
+        return False, "Would exceed daily cap"
+    if spend > MAX_PER_CONTRACT:
+        return False, f"Exceeds per-contract max (${MAX_PER_CONTRACT})"
+    return True, "ok"
+
 def run():
     mode = "PAPER MODE" if PAPER_MODE else "LIVE TRADING"
     log.info(f"OASIS starting — {mode}")
@@ -209,11 +216,18 @@ def run():
             contracts = max(1, int((UNIT_SIZE * 100) / price))
             actual = round((contracts * price) / 100, 2)
 
-            if daily["spent"] + actual <= MAX_DAILY_SPEND:
-                result = kalshi.place_trade(ticker, pick["side"], contracts, price)
-                if "error" not in result:
-                    daily["spent"] += actual
-                    telegram(f"🟢 <b>OASIS Trade Placed</b>\n{ticker}\nSide: {pick['side']} | ${actual}")
+            ok, reason = safe_to_trade(actual, daily)
+            if not ok:
+                log.info(f"Blocked trade on {ticker}: {reason}")
+                continue
+
+            result = kalshi.place_trade(ticker, pick["side"], contracts, price)
+            if "error" not in result:
+                daily["spent"] += actual
+                telegram(f"🟢 <b>OASIS Trade Placed</b>\n{ticker}\nSide: {pick['side']} | ${actual}")
+            else:
+                log.error(f"Trade failed: {result}")
+    
     save_daily(daily)
 
 if __name__ == "__main__":
