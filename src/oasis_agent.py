@@ -242,10 +242,15 @@ def run():
         telegram("🔍 <b>OASIS</b>: No qualifying sports markets")
         return
 
+    log.info(f"Found {len(markets)} markets. Analyzing with Gemini (this will take a few minutes)...")
+
     for market in markets:
+        ticker = market.get("ticker", "Unknown")
+        log.info(f"🧠 Asking Gemini to research {ticker}...")
+        
         pick = research_market(market)
+        
         if not pick.get("skip") and pick.get("confidence", 0) >= CONFIDENCE_THRESHOLD:
-            ticker = pick["ticker"]
             price = pick["market_price"]
             contracts = max(1, int((UNIT_SIZE * 100) / price))
             actual = round((contracts * price) / 100, 2)
@@ -261,6 +266,9 @@ def run():
                 telegram(f"🟢 <b>OASIS Trade Placed</b>\n{ticker}\nSide: {pick['side']} | ${actual}")
             else:
                 log.error(f"Trade failed: {result}")
+        
+        # CRITICAL FIX: Sleep for 4.5 seconds to stay under the Gemini Free Tier limit (15 requests/minute)
+        time.sleep(4.5) 
     
     save_daily(daily)
 
