@@ -75,14 +75,18 @@ If high-probability trade: {{"skip":false,"side":"YES","confidence":95,"market_p
 If no clear edge: {{"skip":true,"reason":"No edge"}}"""
 
     try:
-        r = ai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        r = ai_client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         text = r.text.strip().replace("```json", "").replace("```", "").strip()
         result = json.loads(text)
         result["market"] = market
         return result
     except Exception as e:
-        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+        err = str(e)
+        if "429" in err or "RESOURCE_EXHAUSTED" in err:
             log.error("🛑 Gemini Free Tier exhausted. Shutting down research loop.")
+            return {"skip": True, "exhausted": True, "market": market}
+        if "404" in err or "NOT_FOUND" in err:
+            log.error(f"🛑 Model not found: {e}. Check model name in code.")
             return {"skip": True, "exhausted": True, "market": market}
         log.error(f"AI error on {ticker}: {e}")
         return {"skip": True, "reason": "AI Error", "market": market}
