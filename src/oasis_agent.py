@@ -12,7 +12,7 @@ from google import genai
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
-# NEW: Firebase Admin for Webapp Sync
+# Firebase Admin for Webapp Sync
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -30,7 +30,7 @@ log = logging.getLogger("oasis")
 REQUIRED = ["GEMINI_API_KEY", "KALSHI_API_KEY", "KALSHI_PRIVATE_KEY", "TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "FIREBASE_KEY"]
 missing = [k for k in REQUIRED if not os.environ.get(k)]
 if missing:
-    raise SystemExit(f"OASIS: Missing secrets: {', '.join(missing)}\n  GitHub: add in Settings → Secrets → Actions")
+    raise SystemExit(f"OASIS: Missing secrets: {', '.join(missing)}")
 
 GEMINI_API_KEY     = os.environ["GEMINI_API_KEY"]
 KALSHI_API_KEY     = os.environ["KALSHI_API_KEY"]
@@ -41,17 +41,16 @@ FIREBASE_KEY_JSON  = os.environ["FIREBASE_KEY"]
 PAPER_MODE         = os.environ.get("PAPER_MODE", "true").lower() == "true"
 
 # MACRO TRADING THRESHOLDS
-CONFIDENCE_THRESHOLD = 93  
+CONFIDENCE_THRESHOLD = 93  # High bar for the Marathon
 UNIT_SIZE            = 15  
 MAX_DAILY_SPEND      = 150
-MAX_PER_CONTRACT     = 60
 
 # EXHAUSTION SAFEGUARDS
 MAX_AI_RESEARCH_COUNT = 15 
 
 KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 
-# ── Firebase Setup (Oasis App Connection) ────────────────────────────────────
+# ── Firebase Setup ───────────────────────────────────────────────────────────
 db = None
 if not firebase_admin._apps:
     try:
@@ -61,48 +60,45 @@ if not firebase_admin._apps:
         db = firestore.client()
         log.info("🔥 Oasis App Sync: Connected to Firestore")
     except Exception as e:
-        log.error(f"🔥 Oasis App Sync: Failed to connect: {e}")
+        log.error(f"🔥 Oasis App Sync Error: {e}")
 
 # ── Gemini AI ────────────────────────────────────────────────────────────────
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
-def research_market(market: dict) -> dict:
+def research_market(market: dict, retry_count=0) -> dict:
     title      = market.get("title", "")
     subtitle   = market.get("subtitle", "")
     yes_price  = market.get("yes_ask", 50)
     ticker     = market.get("ticker", "")
     close_time = market.get("close_time", "")
 
-    prompt = f"""You are OASIS, an elite quantitative macro analyst and momentum trader.
-Your goal is to extract small, high-probability wins from Crypto, Economic, and Political prediction markets. 
-
-STRATEGY:
-1. CRYPTO: Look for spot-price lag. If Bitcoin/Ethereum is currently surging but the Kalshi price is lagging, buy YES.
-2. POLITICS/ECONOMICS: Look for "Mean Reversion" (irrational panic) or "Polling Arbitrage" (math vs sentiment).
-3. No 50/50 gambles. Only trade when the edge is mathematically superior.
-
+    prompt = f"""You are OASIS, an elite quantitative macro analyst.
 MARKET: {title}
 DETAIL: {subtitle}
 TICKER: {ticker}
-CLOSE:  {close_time}
 YES:    {yes_price}¢
 
 Evaluate the probability.
 RESPOND JSON ONLY:
-If high-probability trade: {{"skip":false,"side":"YES","confidence":95,"market_price":{yes_price},"edge":12,"units":2,"reasoning":"<short rationale>","ticker":"{ticker}"}}
-If no clear edge: {{"skip":true,"reason":"No edge"}}"""
+{{"skip":false,"side":"YES","confidence":95,"market_price":{yes_price},"reasoning":"<short rationale>","ticker":"{ticker}"}}"""
 
     try:
+        # Using a more stable model name for free tier
         r = ai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
         text = r.text.strip().replace("```json", "").replace("```", "").strip()
         result = json.loads(text)
         result["market"] = market
         return result
     except Exception as e:
-        err = str(e)
+        err = str(e).upper()
         if "429" in err or "RESOURCE_EXHAUSTED" in err:
-            log.error("🛑 Gemini Free Tier exhausted. Shutting down research loop.")
-            return {"skip": True, "exhausted": True, "market": market}
+            if retry_count < 1:
+                log.warning(f"⏳ Rate limit hit for {ticker}. Pausing for 30s to recover...")
+                time.sleep(30)
+                return research_market(market, retry_count + 1)
+            else:
+                log.error("🛑 Gemini Free Tier exhausted.")
+                return {"skip": True, "exhausted": True, "market": market}
         log.error(f"AI error on {ticker}: {e}")
         return {"skip": True, "reason": "AI Error", "market": market}
 
@@ -149,7 +145,6 @@ class KalshiClient:
         KEYWORDS = ["BTC", "ETH", "CRYPTO", "BITCOIN", "ETHEREUM", "ELECTION", "POLITICS", "ECONOMICS", "FED"]
         all_markets = []
         now = datetime.now(timezone.utc)
-        cutoff = now + timedelta(days=7) 
         cursor = None
 
         log.info("Scanning Kalshi order book...")
@@ -164,13 +159,9 @@ class KalshiClient:
                 title = m.get("title", "").upper()
                 cat = m.get("category", "").upper()
                 is_target = any(k in title for k in KEYWORDS) or cat in ["CRYPTO", "POLITICS", "ECONOMICS"]
-                
-                try:
-                    close_dt = datetime.fromisoformat(m.get("close_time", "").replace("Z", "+00:00"))
-                    if is_target and now < close_dt <= cutoff:
-                        m["_sort_score"] = m.get("volume", 0)
-                        all_markets.append(m)
-                except: pass
+                if is_target:
+                    m["_sort_score"] = m.get("volume", 0)
+                    all_markets.append(m)
             
             cursor = data.get("cursor")
             if not cursor: break
@@ -204,7 +195,6 @@ def telegram(msg: str):
     except: pass
 
 def sync_to_webapp(pick: dict):
-    """Deploys the winning pick to the OasisParlay webapp for subscribers."""
     if db is None: return
     try:
         db.collection('parlays').add({
@@ -215,9 +205,9 @@ def sync_to_webapp(pick: dict):
             'reason': pick.get('reasoning', 'AI Analysis Result'),
             'timestamp': firestore.SERVER_TIMESTAMP
         })
-        log.info(f"🚀 Ticket successfully deployed to OasisParlay webapp.")
+        log.info(f"🚀 Ticket successfully deployed to OasisParlay.")
     except Exception as e:
-        log.error(f"Failed to sync to webapp: {e}")
+        log.error(f"Sync error: {e}")
 
 def load_daily() -> dict:
     return {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "spent": 0.0}
@@ -242,7 +232,7 @@ def run():
         pick = research_market(market)
         
         if pick.get("exhausted"):
-            log.warning("Exiting loop: Gemini limit reached.")
+            log.warning("Exiting loop: Gemini limit reached for this run.")
             break
             
         if not pick.get("skip") and pick.get("confidence", 0) >= CONFIDENCE_THRESHOLD:
@@ -255,12 +245,11 @@ def run():
             result = kalshi.place_trade(ticker, pick["side"], contracts, price)
             if "error" not in result:
                 daily["spent"] += actual
-                # 1. Notify Telegram
                 telegram(f"🟢 <b>OASIS PICK</b>\n{ticker}\nSide: {pick['side']} | Conf: {pick['confidence']}%\nReason: {pick.get('reasoning')}")
-                # 2. Sync to OasisParlay Webapp
                 sync_to_webapp(pick)
         
-        time.sleep(6) # Stay under Gemini RPM limits
+        # INCREASED DELAY: Giving the API more time between markets
+        time.sleep(15) 
 
 if __name__ == "__main__":
     run()
