@@ -41,7 +41,7 @@ FIREBASE_KEY_JSON  = os.environ["FIREBASE_KEY"]
 PAPER_MODE         = os.environ.get("PAPER_MODE", "true").lower() == "true"
 
 # MACRO TRADING THRESHOLDS
-CONFIDENCE_THRESHOLD = 93  # High bar for the Marathon
+CONFIDENCE_THRESHOLD = 93  
 UNIT_SIZE            = 15  
 MAX_DAILY_SPEND      = 150
 
@@ -70,7 +70,6 @@ def research_market(market: dict, retry_count=0) -> dict:
     subtitle   = market.get("subtitle", "")
     yes_price  = market.get("yes_ask", 50)
     ticker     = market.get("ticker", "")
-    close_time = market.get("close_time", "")
 
     prompt = f"""You are OASIS, an elite quantitative macro analyst.
 MARKET: {title}
@@ -83,8 +82,8 @@ RESPOND JSON ONLY:
 {{"skip":false,"side":"YES","confidence":95,"market_price":{yes_price},"reasoning":"<short rationale>","ticker":"{ticker}"}}"""
 
     try:
-        # Using a more stable model name for free tier
-        r = ai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        # CHANGED: Using gemini-1.5-flash for higher RPM limits (15 RPM)
+        r = ai_client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
         text = r.text.strip().replace("```json", "").replace("```", "").strip()
         result = json.loads(text)
         result["market"] = market
@@ -93,11 +92,10 @@ RESPOND JSON ONLY:
         err = str(e).upper()
         if "429" in err or "RESOURCE_EXHAUSTED" in err:
             if retry_count < 1:
-                log.warning(f"⏳ Rate limit hit for {ticker}. Pausing for 30s to recover...")
+                log.warning(f"⏳ Rate limit hit. Pausing 30s...")
                 time.sleep(30)
                 return research_market(market, retry_count + 1)
             else:
-                log.error("🛑 Gemini Free Tier exhausted.")
                 return {"skip": True, "exhausted": True, "market": market}
         log.error(f"AI error on {ticker}: {e}")
         return {"skip": True, "reason": "AI Error", "market": market}
@@ -227,12 +225,12 @@ def run():
 
     for market in markets:
         ticker = market.get("ticker", "Unknown")
-        log.info(f"🧠 Researching {ticker} (Vol: {market.get('volume', 0)})")
+        log.info(f"🧠 Researching {ticker}")
         
         pick = research_market(market)
         
         if pick.get("exhausted"):
-            log.warning("Exiting loop: Gemini limit reached for this run.")
+            log.warning("Exiting loop: Gemini limit reached.")
             break
             
         if not pick.get("skip") and pick.get("confidence", 0) >= CONFIDENCE_THRESHOLD:
@@ -248,8 +246,8 @@ def run():
                 telegram(f"🟢 <b>OASIS PICK</b>\n{ticker}\nSide: {pick['side']} | Conf: {pick['confidence']}%\nReason: {pick.get('reasoning')}")
                 sync_to_webapp(pick)
         
-        # INCREASED DELAY: Giving the API more time between markets
-        time.sleep(15) 
+        # 10 second delay is safe for 15 RPM limits
+        time.sleep(10) 
 
 if __name__ == "__main__":
     run()
