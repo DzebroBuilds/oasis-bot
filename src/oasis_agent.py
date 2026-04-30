@@ -82,9 +82,9 @@ RESPOND JSON ONLY:
 {{"skip":false,"side":"YES","confidence":95,"market_price":{yes_price},"reasoning":"<short rationale>","ticker":"{ticker}"}}"""
 
     try:
-        # FIXED: Using gemini-2.0-flash (The current active model)
-        # Since you are now a Paid user, this model will run at high speed.
-        r = ai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        # UPGRADED: Using gemini-3-flash-preview (The 2026 Gold Standard)
+        # This fixes the 404 error and utilizes your new Tier 1 billing.
+        r = ai_client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
         text = r.text.strip().replace("```json", "").replace("```", "").strip()
         result = json.loads(text)
         result["market"] = market
@@ -235,7 +235,6 @@ def run():
                 telegram(f"🟢 <b>OASIS PICK</b>\n{ticker}\nSide: {pick['side']} | Conf: {pick['confidence']}%\nReason: {pick.get('reasoning')}")
                 sync_to_webapp(pick)
         
-        # Reduced delay since you are now on a paid plan
         time.sleep(3) 
 
 if __name__ == "__main__":
