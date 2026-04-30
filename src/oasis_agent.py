@@ -65,7 +65,7 @@ if not firebase_admin._apps:
 # ── Gemini AI ────────────────────────────────────────────────────────────────
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
-def research_market(market: dict, retry_count=0) -> dict:
+def research_market(market: dict) -> dict:
     title      = market.get("title", "")
     subtitle   = market.get("subtitle", "")
     yes_price  = market.get("yes_ask", 50)
@@ -82,21 +82,14 @@ RESPOND JSON ONLY:
 {{"skip":false,"side":"YES","confidence":95,"market_price":{yes_price},"reasoning":"<short rationale>","ticker":"{ticker}"}}"""
 
     try:
-        # CHANGED: Using gemini-1.5-flash for higher RPM limits (15 RPM)
-        r = ai_client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
+        # FIXED: Using gemini-2.0-flash (The current active model)
+        # Since you are now a Paid user, this model will run at high speed.
+        r = ai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
         text = r.text.strip().replace("```json", "").replace("```", "").strip()
         result = json.loads(text)
         result["market"] = market
         return result
     except Exception as e:
-        err = str(e).upper()
-        if "429" in err or "RESOURCE_EXHAUSTED" in err:
-            if retry_count < 1:
-                log.warning(f"⏳ Rate limit hit. Pausing 30s...")
-                time.sleep(30)
-                return research_market(market, retry_count + 1)
-            else:
-                return {"skip": True, "exhausted": True, "market": market}
         log.error(f"AI error on {ticker}: {e}")
         return {"skip": True, "reason": "AI Error", "market": market}
 
@@ -229,10 +222,6 @@ def run():
         
         pick = research_market(market)
         
-        if pick.get("exhausted"):
-            log.warning("Exiting loop: Gemini limit reached.")
-            break
-            
         if not pick.get("skip") and pick.get("confidence", 0) >= CONFIDENCE_THRESHOLD:
             price = pick["market_price"]
             contracts = max(1, int((UNIT_SIZE * 100) / price))
@@ -246,8 +235,8 @@ def run():
                 telegram(f"🟢 <b>OASIS PICK</b>\n{ticker}\nSide: {pick['side']} | Conf: {pick['confidence']}%\nReason: {pick.get('reasoning')}")
                 sync_to_webapp(pick)
         
-        # 10 second delay is safe for 15 RPM limits
-        time.sleep(10) 
+        # Reduced delay since you are now on a paid plan
+        time.sleep(3) 
 
 if __name__ == "__main__":
     run()
