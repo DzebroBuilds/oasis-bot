@@ -27,7 +27,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | OASIS | %(levelnam
 log = logging.getLogger("oasis")
 
 # ── Validate secrets ──────────────────────────────────────────────────────────
-# Added FIREBASE_KEY to the required list for webapp sync
 REQUIRED = ["GEMINI_API_KEY", "KALSHI_API_KEY", "KALSHI_PRIVATE_KEY", "TELEGRAM_TOKEN", "TELEGRAM_CHAT_ID", "FIREBASE_KEY"]
 missing = [k for k in REQUIRED if not os.environ.get(k)]
 if missing:
@@ -128,4 +127,140 @@ class KalshiClient:
 
     def request(self, method, endpoint, params=None, json_data=None):
         timestamp = str(int(time.time() * 1000))
-        full_path =
+        full_path = f"/trade-api/v2{endpoint}"
+        headers = {
+            "KALSHI-ACCESS-KEY": KALSHI_API_KEY,
+            "KALSHI-ACCESS-SIGNATURE": self.sign_request(timestamp, method, full_path),
+            "KALSHI-ACCESS-TIMESTAMP": timestamp,
+            "Content-Type": "application/json"
+        }
+        url = f"{KALSHI_BASE}{endpoint}"
+        return self.session.request(method, url, headers=headers, params=params, json=json_data, timeout=15)
+
+    def login(self) -> bool:
+        r = self.request("GET", "/portfolio/balance")
+        return r.status_code == 200
+
+    def get_balance(self) -> float:
+        r = self.request("GET", "/portfolio/balance")
+        return r.json().get("balance", 0) / 100 if r.status_code == 200 else 0.0
+
+    def get_target_markets(self) -> list:
+        KEYWORDS = ["BTC", "ETH", "CRYPTO", "BITCOIN", "ETHEREUM", "ELECTION", "POLITICS", "ECONOMICS", "FED"]
+        all_markets = []
+        now = datetime.now(timezone.utc)
+        cutoff = now + timedelta(days=7) 
+        cursor = None
+
+        log.info("Scanning Kalshi order book...")
+        while True:
+            params = {"status": "open", "limit": 1000}
+            if cursor: params["cursor"] = cursor
+            r = self.request("GET", "/markets", params=params)
+            if r.status_code != 200: break
+            
+            data = r.json()
+            for m in data.get("markets", []):
+                title = m.get("title", "").upper()
+                cat = m.get("category", "").upper()
+                is_target = any(k in title for k in KEYWORDS) or cat in ["CRYPTO", "POLITICS", "ECONOMICS"]
+                
+                try:
+                    close_dt = datetime.fromisoformat(m.get("close_time", "").replace("Z", "+00:00"))
+                    if is_target and now < close_dt <= cutoff:
+                        m["_sort_score"] = m.get("volume", 0)
+                        all_markets.append(m)
+                except: pass
+            
+            cursor = data.get("cursor")
+            if not cursor: break
+            time.sleep(0.1)
+
+        all_markets.sort(key=lambda x: x["_sort_score"], reverse=True)
+        return all_markets[:MAX_AI_RESEARCH_COUNT]
+
+    def place_trade(self, ticker: str, side: str, count: int, price_cents: int) -> dict:
+        if PAPER_MODE:
+            log.info(f"[PAPER] {side.upper()} {count}x {ticker} @ {price_cents}¢")
+            return {"paper": True}
+        payload = {
+            "action": "buy",
+            "client_order_id": f"oasis_{ticker}_{int(time.time())}",
+            "count": count,
+            "side": side.lower(),
+            "ticker": ticker,
+            "type": "limit",
+            "yes_price": price_cents if side.lower() == "yes" else (100 - price_cents),
+            "no_price":  price_cents if side.lower() == "no"  else (100 - price_cents),
+        }
+        r = self.request("POST", "/portfolio/orders", json_data=payload)
+        return r.json() if r.status_code in (200, 201) else {"error": r.text}
+
+# ── Utility & Sync ───────────────────────────────────────────────────────────
+def telegram(msg: str):
+    try:
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=8)
+    except: pass
+
+def sync_to_webapp(pick: dict):
+    """Deploys the winning pick to the OasisParlay webapp for subscribers."""
+    if db is None: return
+    try:
+        db.collection('parlays').add({
+            'team': pick.get('ticker', 'Unknown Match'),
+            'odds': f"{pick.get('market_price')}¢",
+            'confidence': pick.get('confidence', 0),
+            'status': 'active',
+            'reason': pick.get('reasoning', 'AI Analysis Result'),
+            'timestamp': firestore.SERVER_TIMESTAMP
+        })
+        log.info(f"🚀 Ticket successfully deployed to OasisParlay webapp.")
+    except Exception as e:
+        log.error(f"Failed to sync to webapp: {e}")
+
+def load_daily() -> dict:
+    return {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "spent": 0.0}
+
+def run():
+    log.info(f"OASIS active — {'PAPER' if PAPER_MODE else 'LIVE'}")
+    kalshi = KalshiClient()
+    if not kalshi.login():
+        log.error("Auth failed")
+        return
+
+    balance = kalshi.get_balance()
+    log.info(f"Balance: ${balance:.2f}")
+
+    markets = kalshi.get_target_markets()
+    daily = load_daily()
+
+    for market in markets:
+        ticker = market.get("ticker", "Unknown")
+        log.info(f"🧠 Researching {ticker} (Vol: {market.get('volume', 0)})")
+        
+        pick = research_market(market)
+        
+        if pick.get("exhausted"):
+            log.warning("Exiting loop: Gemini limit reached.")
+            break
+            
+        if not pick.get("skip") and pick.get("confidence", 0) >= CONFIDENCE_THRESHOLD:
+            price = pick["market_price"]
+            contracts = max(1, int((UNIT_SIZE * 100) / price))
+            actual = round((contracts * price) / 100, 2)
+
+            if daily["spent"] + actual > MAX_DAILY_SPEND: continue
+
+            result = kalshi.place_trade(ticker, pick["side"], contracts, price)
+            if "error" not in result:
+                daily["spent"] += actual
+                # 1. Notify Telegram
+                telegram(f"🟢 <b>OASIS PICK</b>\n{ticker}\nSide: {pick['side']} | Conf: {pick['confidence']}%\nReason: {pick.get('reasoning')}")
+                # 2. Sync to OasisParlay Webapp
+                sync_to_webapp(pick)
+        
+        time.sleep(6) # Stay under Gemini RPM limits
+
+if __name__ == "__main__":
+    run()
