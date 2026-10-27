@@ -43,3 +43,8 @@ Thumbs.db
 
 # Node (if dashboard uses npm)
 node_modules/
+
+.env.*
+!.env.example
+*service-account*.json
+*firebase-adminsdk*.json
