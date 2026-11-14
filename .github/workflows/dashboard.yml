@@ -1,0 +1,66 @@
+name: Oasis Python dashboard
+on:
+  schedule:
+    - cron: '17 * * * *'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/dashboard.yml']
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Scanner action
+        type: choice
+        options: [scan, pause, resume]
+        default: scan
+      enable_research:
+        description: Optional Gemini research (up to 3 markets; provider charges may apply)
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: oasis-paper-ledger
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 69f2bc13e7d16e68396cd4dd52a094c02d88e80f
+          path: source
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: oasis-data
+          path: state
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate paper engine
+        working-directory: source
+        run: python -m unittest discover -s src -p 'test_*.py' -v
+      - name: Run Python dashboard worker
+        env:
+          SCAN_ACTION: ${{ inputs.action || 'scan' }}
+          ENABLE_RESEARCH: ${{ inputs.enable_research || false }}
+          GEMINI_API_KEY: ${{ inputs.enable_research && secrets.GEMINI_API_KEY || '' }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-4-hydrogen' }}
+        shell: bash
+        run: |
+          args=()
+          if [ "$ENABLE_RESEARCH" = "true" ]; then args+=(--research); fi
+          python source/src/dashboard_runner.py --state-dir state --action "$SCAN_ACTION" "${args[@]}"
+      - name: Persist public paper state
+        working-directory: state
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- ledger.json dashboard.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update Oasis paper dashboard"
+            git push origin HEAD:oasis-data
+          fi
