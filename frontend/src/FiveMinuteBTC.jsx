@@ -2,6 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {bookQuote,discoverRounds,publicJson,roundWindow,analyzeRound} from './btcRound';
 import './five-minute.css';
 import BitcoinContext from './BitcoinContext';
+import OasisBrain from './OasisBrain';
 
 const price=p=>typeof p==='number'?`${(p*100).toFixed(2)}¢`:'Unavailable';
 const usd=amount=>amount?.currency==='USD'&&Number.isFinite(Number(amount.value))?new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(amount.value)):'Not supplied';
@@ -71,6 +72,7 @@ export default function FiveMinuteBTC() {
   return <section className="btc-terminal" aria-labelledby="btc-title">
     <div className="btc-heading"><div><p className="eyebrow">POLYMARKET US / BTC / FIVE MINUTES</p><h2 id="btc-title">One round. A clearer view.</h2></div><button onClick={()=>setWatching(v=>!v)} aria-pressed={!watching}>{watching?'Pause live watch':'Resume live watch'}</button></div>
     <p className={`btc-status ${stale?'btc-stale':''}`} role="status">{status}{observed?` · Quote age ${Math.floor(age)}s${stale?' · STALE / NOT ACTIONABLE':''}`:''}</p>
+    <OasisBrain analysis={analysis} quote={quote} history={history} current={current} stale={stale} left={left} observed={observed} watching={watching} />
     <div className="btc-round"><div><span>CURRENT ROUND</span><h3>{current?`${time(current.start)} – ${time(current.end)}`:'Waiting for an active round'}</h3><code>{current?.slug||'No expired contract will be substituted'}</code></div><div className="btc-countdown" aria-label="Time remaining">{current?`${Math.floor(left/60).toString().padStart(2,'0')}:${(left%60).toString().padStart(2,'0')}`:'--:--'}<small>{left?'remaining · device clock':'round closed / unavailable'}</small></div></div>
     <div className="btc-quotes"><article><span>{longSide||'Long outcome'} · best offer</span><strong>{price(quote.ask?.price)}</strong><small>{quote.ask?`${quote.ask.size} contracts at best offer`:'No resting offer received'}</small></article><article><span>{shortSide||'Opposite outcome'} · implied offer</span><strong>{price(quote.opposite?.price)}</strong><small>{quote.opposite?`${quote.opposite.size} contracts at opposing best bid`:'No opposing bid received'}</small></article><article><span>Long bid–ask spread</span><strong>{typeof quote.spread==='number'?`${(quote.spread*100).toFixed(2)}¢`:'Unavailable'}</strong><small>{stale?'Quote is stale':quote.open?'Open book snapshot':'Market not open'}</small></article></div>
 
