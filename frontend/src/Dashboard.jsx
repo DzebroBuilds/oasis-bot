@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './dashboard.css';
 import './providers.css';
 
@@ -19,6 +19,7 @@ function validate(data) {
 
 export default function Dashboard() {
   const [data,setData]=useState(null);
+  const fallbackAt=useRef(0);
   const [error,setError]=useState('');
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('Markets');
@@ -31,8 +32,21 @@ export default function Dashboard() {
     try {
       const response=await fetch(`${FEED}?t=${Date.now()}`,{cache:'no-store',signal});
       if(!response.ok) throw new Error('Data update unavailable');
-      const next=validate(await response.json());
-      setData(next); setError(''); setClock(Date.now());
+      let next=validate(await response.json());
+      // Raw branch files can lag behind a successful state commit. Public API
+      // fallback is throttled to at most one request per five minutes per tab.
+      if ((!next.health.providers || Date.now()-Date.parse(next.generated_at)>75*60000) && Date.now()-fallbackAt.current>300000) {
+        fallbackAt.current=Date.now();
+        try {
+          const latest=await fetch('https://api.github.com/repos/DzebroBuilds/oasis-bot/contents/dashboard.json?ref=oasis-data',{cache:'no-store',signal});
+          if(latest.ok) {
+            const metadata=await latest.json();
+            const candidate=validate(JSON.parse(atob(metadata.content.replace(/\\s/g,''))));
+            if(Date.parse(candidate.generated_at)>Date.parse(next.generated_at)) next=candidate;
+          }
+        } catch { /* Retain the valid raw snapshot on fallback failure. */ }
+      }
+      setData(current=>!current||Date.parse(next.generated_at)>=Date.parse(current.generated_at)?next:current); setError(''); setClock(Date.now());
     } catch(err) {
       if(err.name!=='AbortError') setError('Cannot reach the Python dashboard feed. Showing the last loaded snapshot, if available.');
     } finally { if(!signal?.aborted) setLoading(false); }
@@ -99,4 +113,3 @@ export default function Dashboard() {
     <p className="dashboard-bottom" role="status">{data?`${data.stats.decisions} recorded decisions · ${status}`:'Waiting for the Python dashboard feed.'}</p>
   </div>;
 }
-
