@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Dashboard from './Dashboard';
 import SoftAurora from './components/SoftAurora';
 import ProfileCard from './components/ProfileCard';
 import portraitUrl from './assets/profile-placeholder.svg';
@@ -49,12 +50,7 @@ export default function App() {
         </div>
       </section>
       <section id="workspace" className="workspace" aria-labelledby="workspace-title">
-        <div className="section-heading"><div><p className="eyebrow">YOUR NEXT MOVE</p><h2 id="workspace-title">A foundation for better decisions.</h2></div><span className="connection">Backend not connected</span></div>
-        <div className="cards">
-          <article><span className="number">01 / RESEARCH</span><h3>Market intelligence</h3><p>Inspect market rules, timestamped evidence, and probability estimates in one place.</p><span className="planned">Planned integration</span></article>
-          <article><span className="number">02 / SIMULATE</span><h3>Paper portfolio</h3><p>Follow simulated positions and evaluate results after costs and uncertainty.</p><span className="planned">Planned integration</span></article>
-          <article><span className="number">03 / CONTROL</span><h3>Risk & activity</h3><p>Review spending limits, exposure, and the reasoning behind every decision.</p><span className="planned">Planned integration</span></article>
-        </div>
+        <Dashboard />
         <section className="profile-preview" aria-labelledby="profile-preview-title">
           <div className="profile-preview-copy">
             <p className="eyebrow">PROFILE / COMPONENT PREVIEW</p>
@@ -89,8 +85,9 @@ export default function App() {
             />
           </div>
         </section>
-        <footer><span>OasisWebAndAI</span><span>Frontend preview · No live trading</span></footer>
+        <footer><span>OasisWebAndAI</span><span>Paper research dashboard · No live trading</span></footer>
       </section>
     </main>
   );
 }
+
