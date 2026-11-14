@@ -16,8 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 2802d47952254b8173b25df90679e739b6fee8ea
+          ref: 69f2bc13e7d16e68396cd4dd52a094c02d88e80f
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate paper backend
+        run: python -m unittest discover -s src -p 'test_*.py' -v
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

@@ -1,19 +1,17 @@
 # Oasis React frontend
 
+Live: https://dzebrobuilds.github.io/oasis-bot/
+
 Requires Node 22.12+.
 
 ```powershell
 cd frontend
-npm install
+npm install --ignore-scripts
 npm run dev
 ```
 
-Build with `npm run build`. This is a frontend preview; it does not connect to trading providers or control the Python bot.
+Build with `npm run build`. Dashboard.jsx reads the public paper feed produced by Python in the `oasis-data` branch. Run and pause controls link to authenticated GitHub Actions. No tokens are stored in the browser. See ../docs/CONNECTED_DASHBOARD.md.
 
-SoftAurora.jsx and SoftAurora.css are the unmodified JS-CSS registry files from React Bits:
-- Requested registry: https://reactbits.dev/r/SoftAurora-JS-CSS.json
-- Official repository mirror used: https://github.com/DavidHDev/react-bits/blob/main/public/r/SoftAurora-JS-CSS.json
+SoftAurora.jsx and SoftAurora.css are the unmodified JS-CSS registry files from React Bits: https://reactbits.dev/r/SoftAurora-JS-CSS.json (retrieved from the official DavidHDev/react-bits repository mirror). The registry lists no additional dependencies. It is mounted behind a 600px hero using the requested settings, with pause/reduced-motion controls and a CSS fallback.
 
-Registry dependency arrays are empty. Only React, React DOM, and the Vite frontend build tool are added. Source license is included in REACT_BITS_LICENSE.md.
-
-App.jsx mounts the component behind the 600px hero using the requested configuration. Animation and interaction are disabled for reduced-motion preferences and the background pause button. A CSS gradient remains visible if WebGL2 is unavailable. The old HTML dashboard remains separate.
+ProfileCard uses its exact registry source and both listed Hugeicons dependencies. See PROFILE_CARD.md. Upstream license: REACT_BITS_LICENSE.md.

@@ -1,43 +1,10 @@
-name: OASIS — Auto Scan & Trade
-
+name: Legacy Oasis agent (retired)
 on:
-  schedule:
-    - cron: '0 */6 * * *'
   workflow_dispatch:
-
 permissions:
   contents: read
-concurrency:
-  group: oasis-trading
-  cancel-in-progress: false
-
 jobs:
-  run-bot:
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run Oasis Bot
-        run: python src/oasis_agent.py
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          KALSHI_API_KEY: ${{ secrets.KALSHI_API_KEY }}
-          KALSHI_PRIVATE_KEY: ${{ secrets.KALSHI_PRIVATE_KEY }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
-          PAPER_MODE: ${{ secrets.PAPER_MODE }}
+      - run: echo "The legacy trading runner is retired. Use the Oasis Python dashboard workflow for paper research."
