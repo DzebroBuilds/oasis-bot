@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {findRounds,roundWindow,bookQuote} from './btcRound.js';
+const event={slug:'btc-updown-5m-2026-11-14-1200z',markets:[{slug:'btc-test'}]};
+assert.equal(findRounds([event],Date.parse('2026-11-14T12:02:00Z')).current.slug,'btc-test');
+assert.equal(findRounds([event],Date.parse('2026-11-14T12:05:00Z')).current,null);
+assert.equal(findRounds([{...event,slug:'btc-updown-15m-2026-11-14-1200z'}],Date.parse('2026-11-14T12:02:00Z')).current,null);
+assert.equal(roundWindow(event,{assetPriceTerms:{windowStart:'2026-11-14T12:00:00Z',windowEnd:'2026-11-14T12:15:00Z'}}),null);
+const book={state:'MARKET_STATE_OPEN',offers:[{px:{value:'0.55',currency:'USD'},qty:'5'}],bids:[{px:{value:'0.50',currency:'USD'},qty:'8'}]};
+assert.equal(bookQuote(book).ask.price,.55);
+assert.equal(bookQuote(book).opposite.price,.5);
+assert.equal(bookQuote({...book,offers:[{px:{value:'0.5',currency:'EUR'},qty:'5'}]}).ask,null);
+console.log('BTC round selection, boundaries and book conversion checks passed');

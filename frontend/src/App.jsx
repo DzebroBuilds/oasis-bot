@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import FiveMinuteBTC from './FiveMinuteBTC';
 import Dashboard from './Dashboard';
 import SoftAurora from './components/SoftAurora';
 import ProfileCard from './components/ProfileCard';
@@ -50,6 +51,7 @@ export default function App() {
         </div>
       </section>
       <section id="workspace" className="workspace" aria-labelledby="workspace-title">
+        <FiveMinuteBTC />
         <Dashboard />
         <section className="profile-preview" aria-labelledby="profile-preview-title">
           <div className="profile-preview-copy">
@@ -90,4 +92,5 @@ export default function App() {
     </main>
   );
 }
+
 

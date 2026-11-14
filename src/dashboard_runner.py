@@ -271,6 +271,14 @@ def run(state_dir, action='scan', research_enabled=False, fetch=request_json):
             else:
                 health['providers']['polymarket_us'] = {'status':'paused','observed_at':previous.get('health',{}).get('providers',{}).get('polymarket_us',{}).get('observed_at')}
             feed = export_dashboard(engine,markets,health,research,now)
+            if feed['paused']:
+                feed['btc_five_minute']={'status':'paused','mode':'read_only'}
+            else:
+                try:
+                    from five_minute import snapshot
+                    feed['btc_five_minute']=snapshot(fetch)
+                except Exception:
+                    feed['btc_five_minute']={'status':'unavailable','mode':'read_only'}
             atomic_json(state_dir/'ledger.json',dump(engine))
             atomic_json(state_dir/'dashboard.json',feed)
             print(json.dumps({'mode':'paper','health':health['status'],'markets':len(markets),'action':action}))
@@ -286,4 +294,5 @@ if __name__=='__main__':
     parser.add_argument('--research',action='store_true')
     args=parser.parse_args()
     run(args.state_dir,args.action,args.research)
+
 
