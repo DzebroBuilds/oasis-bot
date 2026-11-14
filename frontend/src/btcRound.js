@@ -80,3 +80,23 @@ export async function publicJson(path,signal) {
     return await result.json();
   } finally {clearTimeout(timeout);signal?.removeEventListener('abort',cancel);}
 }
+
+export function analyzeRound({quote,stale,left,mapped,history=[],slug}) {
+  const base={lean:'Unavailable',suggestion:'Wait',confidence:'Not rated',mid:null,reasons:[]};
+  if(stale||!quote.open) return {...base,reasons:['Quotes are stale, paused, expired, or the market is not open.']};
+  if(!mapped) return {...base,reasons:['Up/Down outcome mapping could not be verified from the published rules and sides.']};
+  if(!quote.bid||!quote.ask||quote.spread<0||quote.spread>0.05+1e-9)
+    return {...base,reasons:['A valid two-sided book with a spread of at most 5 cents is required.']};
+  const mid=(quote.bid.price+quote.ask.price)/2;
+  const lean=quote.bid.price>0.5?'Up':quote.ask.price<0.5?'Down':'Neutral';
+  const observations=history.filter(h=>h.slug===slug&&Number.isFinite(h.bid)&&Number.isFinite(h.ask));
+  const first=observations[0],last=observations.at(-1);
+  const change=observations.length>=3?(last.bid+last.ask-first.bid-first.ask)/2:null;
+  const reasons=[
+    `Up bid/offer: ${(quote.bid.price*100).toFixed(1)} / ${(quote.ask.price*100).toFixed(1)} cents; midpoint ${(mid*100).toFixed(1)} cents.`,
+    lean==='Neutral'?'The bid/offer interval includes 50 cents; there is no clear market favorite.':`The two-sided market pricing favors ${lean}; this is market sentiment, not an independently calculated win probability.`,
+    change===null?'Collecting at least three observations for quote trend.':`Up midpoint changed ${(change*100).toFixed(1)} cents across ${observations.length} observations of this round. This is contract-price movement, not BTC momentum.`,
+    left<=30?'Fewer than 30 seconds remain: settlement and request delays dominate.':'Live BRTI momentum, an independently tested forecast, and fees are not available here; no positive trading edge is established.'
+  ];
+  return {...base,lean: left<=30?'Unavailable':lean,confidence:'Low · market pricing only',mid,reasons};
+}
