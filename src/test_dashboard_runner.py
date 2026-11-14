@@ -15,6 +15,14 @@ def event_payload():
         'yes_ask_size_fp':'8.9','rules_primary':'Synthetic test rules','status':'active','close_time':'2099-01-01T00:00:00Z'}]}], 'cursor':''}
 
 
+
+def fake_feed(url):
+    if 'gateway.polymarket.us' in url:
+        if url.endswith('/bbo'):
+            return {'marketData': {}}
+        return {'markets':[{'slug':'synthetic-poly','active':True,'closed':False,'question':'Synthetic Polymarket fixture'}]}
+    return event_payload()
+
 class DashboardTests(unittest.TestCase):
     def setup_state(self,directory):
         path=Path(directory)
@@ -39,10 +47,11 @@ class DashboardTests(unittest.TestCase):
     def test_export_is_paper_and_rejects_without_probability(self):
         with tempfile.TemporaryDirectory() as directory:
             path=self.setup_state(directory)
-            feed=run(path,fetch=lambda url:event_payload())
+            feed=run(path,fetch=fake_feed)
             self.assertEqual(feed['mode'],'paper')
             self.assertEqual(feed['health']['status'],'ok')
             self.assertEqual(feed['stats']['open_positions'],0)
+            self.assertEqual({m.get('source') for m in feed['markets']},{'kalshi','polymarket_us'})
             self.assertEqual(feed['decisions'][0]['reason'],'invalid_probability')
             self.assertFalse(feed['entries_enabled'])
             self.assertEqual(json.loads((path/'dashboard.json').read_text())['schema_version'],1)
@@ -59,7 +68,7 @@ class DashboardTests(unittest.TestCase):
     def test_outage_retains_previous_market_timestamp(self):
         with tempfile.TemporaryDirectory() as directory:
             path=self.setup_state(directory)
-            first=run(path,fetch=lambda url:event_payload())
+            first=run(path,fetch=fake_feed)
             def fail(url):
                 raise OSError('Provider secret must not be published')
             second=run(path,fetch=fail)
@@ -116,3 +125,4 @@ class DashboardTests(unittest.TestCase):
 
 if __name__=='__main__':
     unittest.main()
+

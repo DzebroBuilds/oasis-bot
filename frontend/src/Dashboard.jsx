@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import './dashboard.css';
+import './providers.css';
 
 const FEED = 'https://raw.githubusercontent.com/DzebroBuilds/oasis-bot/oasis-data/dashboard.json';
 const RUNS = 'https://github.com/DzebroBuilds/oasis-bot/actions/workflows/dashboard.yml';
 const money = value => typeof value === 'number' ? new Intl.NumberFormat('en-US', {style:'currency',currency:'USD'}).format(value/100) : '—';
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Not yet available';
 const label = value => String(value || '').replaceAll('_', ' ');
+const sourceName = value => value==='polymarket_us'?'Polymarket US':'Kalshi';
 const quote = value => typeof value === 'number' ? `${value}¢` : 'Unavailable';
 
 function validate(data) {
@@ -22,6 +24,7 @@ export default function Dashboard() {
   const [tab,setTab]=useState('Markets');
   const [query,setQuery]=useState('');
   const [category,setCategory]=useState('All');
+  const [exchange,setExchange]=useState('All');
   const [clock,setClock]=useState(Date.now());
   const refresh=useCallback(async signal=>{
     setLoading(true);
@@ -42,8 +45,8 @@ export default function Dashboard() {
     return ()=>{controller.abort();clearInterval(timer);clearInterval(tick);};
   },[refresh]);
   const categories=useMemo(()=>['All',...new Set((data?.markets||[]).map(m=>m.category))],[data]);
-  const markets=useMemo(()=>(data?.markets||[]).filter(m=>(category==='All'||m.category===category)&&
-    `${m.title} ${m.ticker}`.toLowerCase().includes(query.toLowerCase())),[data,category,query]);
+  const markets=useMemo(()=>(data?.markets||[]).filter(m=>(category==='All'||m.category===category)&&(exchange==='All'||(m.source||'kalshi')===exchange)&&
+    `${m.title} ${m.ticker}`.toLowerCase().includes(query.toLowerCase())),[data,category,query,exchange]);
   const marketAge=data?.health.market_data_at ? clock-Date.parse(data.health.market_data_at) : Infinity;
   const stale=marketAge>90*60000;
   const status=!data?'Waiting for Python':data.paused?'Scanner paused':data.health.status==='degraded'?'Update needs attention':stale?'Market data stale':'Python connected';
@@ -54,6 +57,7 @@ export default function Dashboard() {
     {error&&<p className="dashboard-alert" role="alert">{error}</p>}
     {data?.health.message&&<p className="dashboard-alert">{data.health.message}</p>}
     <p className="dashboard-context">Paper trading only. Updates are scheduled hourly and may be delayed by GitHub. Quotes are snapshots, not executable live prices.</p>
+    <div className="provider-status" aria-label="Exchange connections">{['kalshi','polymarket_us'].map(source=><span key={source}>{sourceName(source)}: {data?.health.providers?.[source]?.status||'Awaiting scan'} · {(data?.markets||[]).filter(m=>(m.source||'kalshi')===source).length} markets</span>)}</div>
     <div className="dashboard-stats">
       <article><span>Markets in snapshot</span><strong>{data?data.markets.length:'—'}</strong><small>Bounded exchange sample</small></article>
       <article><span>Paper realized P&amp;L</span><strong>{money(data?.stats.pnl_cents)}</strong><small>{data?`${data.stats.settled} settled positions`:'Waiting for ledger'}</small></article>
@@ -63,9 +67,9 @@ export default function Dashboard() {
     <nav className="dashboard-tabs" aria-label="Dashboard sections">{['Markets','Portfolio','Decisions','Research','Controls'].map(name=><button key={name} aria-pressed={tab===name} onClick={()=>setTab(name)}>{name}</button>)}</nav>
     <div className="dashboard-panel">
       {tab==='Markets'&&<>
-        <div className="market-filters"><label>Find a market<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search title or ticker" /></label><label>Category<select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
-        <p className="panel-note">{data?.scan_scope||'Waiting for the first Python scan.'} No model probability is implied by these prices.</p>
-        <div className="dashboard-table-wrap"><table><thead><tr><th>Market</th><th>Category</th><th>YES ask</th><th>NO ask</th><th>Contracts traded</th><th>Closes</th></tr></thead><tbody>{markets.map(m=><tr key={m.ticker}><td><details><summary>{m.title}</summary><code>{m.ticker}</code><p>{m.rules||'Settlement rules unavailable in this snapshot.'}</p><small>Observed {date(m.quoted_at)}</small></details></td><td>{m.category}</td><td>{quote(m.yes_ask_cents)}</td><td>{quote(m.no_ask_cents)}</td><td>{m.volume.toLocaleString()}</td><td>{date(m.closes_at)}</td></tr>)}</tbody></table></div>
+        <div className="market-filters"><label>Exchange<select value={exchange} onChange={e=>setExchange(e.target.value)}><option value="All">All exchanges</option><option value="kalshi">Kalshi</option><option value="polymarket_us">Polymarket US</option></select></label><label>Find a market<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search title or ticker" /></label><label>Category<select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
+        <p className="panel-note">{data?.scan_scope||'Waiting for the first Python scan.'} No model probability is implied by these prices. Prices round up to whole cents. Polymarket US outcome means the long side; its opposite ask is derived from the long bid.</p>
+        <div className="dashboard-table-wrap"><table><thead><tr><th>Market</th><th>Exchange</th><th>Category</th><th>Outcome / YES ask</th><th>Opposite / NO ask</th><th>Contracts traded</th><th>Closes</th></tr></thead><tbody>{markets.map(m=><tr key={m.ticker}><td><details><summary>{m.title}</summary><code>{m.ticker}</code><p>{m.rules||'Settlement rules unavailable in this snapshot.'}</p>{m.outcome_label&&<p>Outcome: {m.outcome_label} · Cross-exchange equivalence unreviewed</p>}<small>Observed {date(m.quoted_at)}</small></details></td><td>{sourceName(m.source)}</td><td>{m.category}</td><td>{quote(m.yes_ask_cents)}</td><td>{quote(m.no_ask_cents)}</td><td>{typeof m.volume==='number'?m.volume.toLocaleString():'Unavailable'}</td><td>{date(m.closes_at)}</td></tr>)}</tbody></table></div>
         {!markets.length&&<p className="dashboard-empty">{loading?'Loading the market snapshot…':data?'No markets match these filters.':'No snapshot has loaded. Check the scanner run in GitHub.'}</p>}
       </>}
       {tab==='Portfolio'&&<>
@@ -95,3 +99,4 @@ export default function Dashboard() {
     <p className="dashboard-bottom" role="status">{data?`${data.stats.decisions} recorded decisions · ${status}`:'Waiting for the Python dashboard feed.'}</p>
   </div>;
 }
+

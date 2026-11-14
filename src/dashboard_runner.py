@@ -12,6 +12,7 @@ from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 from pathlib import Path
 
 from paper_engine import PaperEngine, utc
+from polymarket_data import scan_polymarket
 
 BASE = 'https://external-api.kalshi.com/trade-api/v2'
 
@@ -48,7 +49,7 @@ def normalize(market, category, at):
     ticker = market.get('ticker')
     if not isinstance(ticker, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,250}', ticker):
         raise ValueError('Invalid ticker')
-    return {'ticker': ticker, 'event': str(market.get('event_ticker', ticker))[:250],
+    return {'source': 'kalshi', 'ticker': ticker, 'event': str(market.get('event_ticker', ticker))[:250],
             'title': str(market.get('title') or market.get('yes_sub_title') or ticker)[:500],
             'category': str(category)[:80], 'rules': str(market.get('rules_primary', ''))[:5000],
             'quoted_at': at, 'closes_at': market.get('close_time'),
@@ -150,6 +151,8 @@ def apply_signals(engine, signals, fetch=request_json):
     if not isinstance(signals,list) or len(signals)>20:
         raise ValueError('At most 20 paper signals per run')
     for signal in signals:
+        if isinstance(signal,dict) and signal.get('source','kalshi')!='kalshi':
+            raise ValueError('Only Kalshi paper signals are supported; Polymarket US is read-only')
         ticker = signal.get('ticker') if isinstance(signal,dict) else None
         if not isinstance(ticker,str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,250}',ticker):
             raise ValueError('Invalid signal ticker')
@@ -192,7 +195,7 @@ def export_dashboard(engine, markets, health, research, now):
             'limits':dict(zip(('daily_cents','unit_cents','event_cents'),engine.limits)),
             'stats':stats,'markets':markets,'positions':positions,'decisions':decisions,'research':research,
             'entries_enabled':False,'strategy_status':'Research only — no validated probability strategy connected',
-            'refresh_minutes':60,'scan_scope':'Up to 300 open events; highest-volume 100 markets in that sample'}
+            'refresh_minutes':60,'scan_scope':'Kalshi: up to 300 events / 100 markets. Polymarket US: up to 50 open markets; ten BBO enrichments. Markets are not automatically matched across exchanges.'}
 
 
 def atomic_json(path, value):
@@ -212,6 +215,7 @@ def run(state_dir, action='scan', research_enabled=False, fetch=request_json):
             if action in ('pause','resume'):
                 engine.pause(action=='pause')
             now = datetime.now(timezone.utc).isoformat()
+            kalshi_refreshed = False
             previous_path = state_dir/'dashboard.json'
             previous = json.loads(previous_path.read_text(encoding='utf-8')) if previous_path.exists() else {}
             markets, research = previous.get('markets',[]), previous.get('research',[])
@@ -221,6 +225,7 @@ def run(state_dir, action='scan', research_enabled=False, fetch=request_json):
                     markets = scan_markets(fetch)
                     if not markets:
                         raise ValueError('No markets returned')
+                    kalshi_refreshed = True
                     health['market_data_at'] = datetime.now(timezone.utc).isoformat()
                     try:
                         reconcile(engine,fetch)
@@ -245,6 +250,26 @@ def run(state_dir, action='scan', research_enabled=False, fetch=request_json):
                     health['message'] = 'Market data fetch failed; previous snapshot retained'
             else:
                 health['status'] = 'paused'
+            health['providers'] = {
+                'kalshi': {'status': 'paused' if health['status']=='paused' else 'ok' if kalshi_refreshed else 'unavailable',
+                           'observed_at': health.get('market_data_at')}
+            }
+            if health['status']!='paused':
+                prior_poly = [m for m in previous.get('markets',[]) if m.get('source')=='polymarket_us']
+                markets = [m for m in markets if m.get('source')!='polymarket_us']
+                try:
+                    poly = scan_polymarket(fetch)
+                    if not poly:
+                        raise ValueError('No active Polymarket US markets returned')
+                    markets += poly
+                    health['providers']['polymarket_us'] = {'status':'ok','observed_at':datetime.now(timezone.utc).isoformat()}
+                except Exception:
+                    markets += prior_poly
+                    health['providers']['polymarket_us'] = {'status':'unavailable','observed_at':previous.get('health',{}).get('providers',{}).get('polymarket_us',{}).get('observed_at')}
+                    health['status']='degraded'
+                    health.setdefault('message','Polymarket US is unavailable; previous Polymarket snapshot retained if present')
+            else:
+                health['providers']['polymarket_us'] = {'status':'paused','observed_at':previous.get('health',{}).get('providers',{}).get('polymarket_us',{}).get('observed_at')}
             feed = export_dashboard(engine,markets,health,research,now)
             atomic_json(state_dir/'ledger.json',dump(engine))
             atomic_json(state_dir/'dashboard.json',feed)
@@ -261,3 +286,4 @@ if __name__=='__main__':
     parser.add_argument('--research',action='store_true')
     args=parser.parse_args()
     run(args.state_dir,args.action,args.research)
+
