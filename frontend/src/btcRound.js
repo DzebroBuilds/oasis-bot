@@ -1,4 +1,26 @@
 export const POLY_US = 'https://gateway.polymarket.us';
+export function bucketSlug(now=Date.now()) {
+  const stamp=new Date(Math.floor(now/300000)*300000).toISOString();
+  return `btc-updown-5m-${stamp.slice(0,10)}-${stamp.slice(11,16).replace(':','')}z`;
+}
+
+export async function discoverRounds(fetchJson=publicJson,signal,now=Date.now()) {
+  const results=await Promise.allSettled([
+    fetchJson(`/v1/events/slug/${bucketSlug(now)}`,signal),
+    fetchJson(`/v1/events/slug/${bucketSlug(now+300000)}`,signal),
+    fetchJson('/v1/search?query=BTC%20Up%20or%20Down%205m&status=active&limit=50',signal)
+  ]);
+  const events=new Map();
+  for(const result of results) {
+    if(result.status!=='fulfilled') continue;
+    const value=result.value;
+    for(const event of [value.event,...(Array.isArray(value.events)?value.events:[])]) {
+      if(event?.slug&&!events.has(event.slug)) events.set(event.slug,event);
+    }
+  }
+  if(!events.size&&results.every(r=>r.status==='rejected')) throw new Error('Discovery unavailable');
+  return findRounds([...events.values()],now);
+}
 const roundPattern = /^btc-updown-5m-(\d{4}-\d{2}-\d{2})-(\d{2})(\d{2})z$/;
 
 export function roundWindow(event, market) {

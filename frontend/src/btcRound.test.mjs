@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {findRounds,roundWindow,bookQuote} from './btcRound.js';
+import {findRounds,roundWindow,bookQuote,bucketSlug,discoverRounds} from './btcRound.js';
 const event={slug:'btc-updown-5m-2026-11-14-1200z',markets:[{slug:'btc-test'}]};
 assert.equal(findRounds([event],Date.parse('2026-11-14T12:02:00Z')).current.slug,'btc-test');
 assert.equal(findRounds([event],Date.parse('2026-11-14T12:05:00Z')).current,null);
@@ -10,3 +10,10 @@ assert.equal(bookQuote(book).ask.price,.55);
 assert.equal(bookQuote(book).opposite.price,.5);
 assert.equal(bookQuote({...book,offers:[{px:{value:'0.5',currency:'EUR'},qty:'5'}]}).ask,null);
 console.log('BTC round selection, boundaries and book conversion checks passed');
+const boundary=Date.parse('2026-11-14T12:05:00Z');
+assert.equal(bucketSlug(boundary-1),'btc-updown-5m-2026-11-14-1200z');
+assert.equal(bucketSlug(boundary),'btc-updown-5m-2026-11-14-1205z');
+const rollover={...event,slug:bucketSlug(boundary),markets:[{slug:'new-round'}]};
+const discovered=await discoverRounds(async path=>path.endsWith(rollover.slug)?{event:rollover}:{events:[event]},null,boundary);
+assert.equal(discovered.current.slug,'new-round');
+console.log('Direct lookup rollover checks passed');

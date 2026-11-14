@@ -1,5 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {bookQuote,findRounds,publicJson,roundWindow} from './btcRound';
+import {bookQuote,discoverRounds,publicJson,roundWindow} from './btcRound';
 import './five-minute.css';
 
 const price=p=>typeof p==='number'?`${(p*100).toFixed(2)}¢`:'Unavailable';
@@ -23,9 +23,7 @@ export default function FiveMinuteBTC() {
     const controller=new AbortController();
     const poll=async()=>{
       try {
-        const response=await publicJson('/v1/search?query=BTC%20Up%20or%20Down%205m&status=active&limit=50',controller.signal);
-        if(!Array.isArray(response.events)) throw new Error('Unexpected discovery response');
-        const next=findRounds(response.events);
+        const next=await discoverRounds(publicJson,controller.signal);
         if(stopped) return;
         setRounds(next);
         if(next.current?.slug!==activeSlug.current) {

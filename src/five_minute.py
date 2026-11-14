@@ -40,11 +40,28 @@ def window(event,market):
 
 def discover(fetch=request_json,now=None):
     now=now or datetime.now(timezone.utc)
-    payload=fetch(BASE+'/v1/search?'+urllib.parse.urlencode({'query':'BTC Up or Down 5m','status':'active','limit':50}))
-    if not isinstance(payload.get('events'),list):
+    events=[]
+    bucket=datetime.fromtimestamp(int(now.timestamp())//300*300,timezone.utc)
+    for offset in (0,5):
+        slug=(bucket+timedelta(minutes=offset)).strftime('btc-updown-5m-%Y-%m-%d-%H%Mz')
+        try:
+            event=fetch(BASE+'/v1/events/slug/'+slug).get('event')
+            if isinstance(event,dict):
+                events.append(event)
+        except Exception:
+            pass  # Search remains a fallback when a round is not published yet.
+    try:
+        payload=fetch(BASE+'/v1/search?'+urllib.parse.urlencode({'query':'BTC Up or Down 5m','status':'active','limit':50}))
+    except Exception:
+        if not events:
+            raise
+        payload={}
+    if not isinstance(payload.get('events'),list) and not events:
         raise ValueError('Invalid search response')
+    known={event.get('slug') for event in events}
+    events.extend(event for event in payload.get('events',[]) if event.get('slug') not in known)
     found=[]
-    for event in payload['events']:
+    for event in events:
         if not PATTERN.fullmatch(event.get('slug','')) or event.get('closed') is True:
             continue
         for market in event.get('markets',[]):

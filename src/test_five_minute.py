@@ -27,6 +27,15 @@ class FiveMinuteTests(unittest.TestCase):
         self.assertIsNone(result['current'])
         self.assertEqual(len(result['upcoming']),1)
 
+    def test_direct_lookup_rollover_when_search_is_stale(self):
+        fresh={**self.fixture(),'slug':'btc-updown-5m-2026-11-14-1205z'}
+        def fetch(url):
+            if url.endswith('/v1/events/slug/'+fresh['slug']):
+                return {'event':fresh}
+            return {'events':[self.fixture()]}
+        result=discover(fetch,datetime(2026,11,14,12,5,tzinfo=timezone.utc))
+        self.assertEqual(result['current']['event_slug'],fresh['slug'])
+
 
 if __name__=='__main__':
     unittest.main()
