@@ -8,6 +8,7 @@
 
 import os, json, time, logging, requests, base64, sys
 from datetime import datetime, timezone, timedelta
+from security import paper_mode, validated_pick
 from google import genai
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -38,7 +39,7 @@ KALSHI_PRIVATE_KEY = os.environ["KALSHI_PRIVATE_KEY"]
 TELEGRAM_TOKEN     = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
 FIREBASE_KEY_JSON  = os.environ["FIREBASE_KEY"]
-PAPER_MODE         = os.environ.get("PAPER_MODE", "true").lower() == "true"
+PAPER_MODE         = paper_mode(os.environ.get("PAPER_MODE"))
 
 # MACRO TRADING THRESHOLDS
 CONFIDENCE_THRESHOLD = 93  
@@ -60,7 +61,7 @@ if not firebase_admin._apps:
         db = firestore.client()
         log.info("🔥 Oasis App Sync: Connected to Firestore")
     except Exception as e:
-        log.error(f"🔥 Oasis App Sync Error: {e}")
+        log.error("Firebase initialization failed; credentials omitted.")
 
 # ── Gemini AI ────────────────────────────────────────────────────────────────
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -86,11 +87,11 @@ RESPOND JSON ONLY:
         # This fixes the 404 error and utilizes your new Tier 1 billing.
         r = ai_client.models.generate_content(model="gemini-3-flash-preview", contents=prompt)
         text = r.text.strip().replace("```json", "").replace("```", "").strip()
-        result = json.loads(text)
+        result = validated_pick(json.loads(text), market)
         result["market"] = market
         return result
     except Exception as e:
-        log.error(f"AI error on {ticker}: {e}")
+        log.error("AI research failed; provider details omitted.")
         return {"skip": True, "reason": "AI Error", "market": market}
 
 # ── Kalshi Client (RSA V2) ───────────────────────────────────────────────────
@@ -162,6 +163,8 @@ class KalshiClient:
         return all_markets[:MAX_AI_RESEARCH_COUNT]
 
     def place_trade(self, ticker: str, side: str, count: int, price_cents: int) -> dict:
+        if side.lower() not in ("yes", "no") or type(count) is not int or count < 1 or type(price_cents) is not int or not 1 <= price_cents <= 99 or count * price_cents > UNIT_SIZE * 100:
+            return {"error": "Invalid order or unit budget exceeded"}
         if PAPER_MODE:
             log.info(f"[PAPER] {side.upper()} {count}x {ticker} @ {price_cents}¢")
             return {"paper": True}
@@ -182,7 +185,7 @@ class KalshiClient:
 def telegram(msg: str):
     try:
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "HTML"}, timeout=8)
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": msg}, timeout=8)
     except: pass
 
 def sync_to_webapp(pick: dict):
@@ -198,9 +201,10 @@ def sync_to_webapp(pick: dict):
         })
         log.info(f"🚀 Ticket successfully deployed to OasisParlay.")
     except Exception as e:
-        log.error(f"Sync error: {e}")
+        log.error("Webapp sync failed; provider details omitted.")
 
 def load_daily() -> dict:
+    # Paper simulations only. Live mode is blocked by security.paper_mode.
     return {"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "spent": 0.0}
 
 def run():

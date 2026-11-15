@@ -1,0 +1,5 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY src/ ./src/
+VOLUME /data
+CMD ["python", "src/five_minute.py", "--db", "/data/btc-five-minute.sqlite3", "--interval", "10"]
