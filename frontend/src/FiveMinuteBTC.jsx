@@ -70,12 +70,12 @@ export default function FiveMinuteBTC() {
   const mapped=/settle to Up if/i.test(rules)&&longSide==='Yes'&&shortSide==='No';
   const analysis=analyzeRound({quote,stale,left,mapped,history,slug:current?.slug});
   return <section className="btc-terminal" aria-labelledby="btc-title">
-    <div className="btc-heading"><div><p className="eyebrow">POLYMARKET US / BTC / FIVE MINUTES</p><h2 id="btc-title">One round. A clearer view.</h2></div><button onClick={()=>setWatching(v=>!v)} aria-pressed={!watching}>{watching?'Pause live watch':'Resume live watch'}</button></div>
+    <div className="btc-heading"><div><p className="eyebrow">POLYMARKET US / BTC / FIVE MINUTES</p><h2 id="btc-title">Bitcoin / 5-minute market</h2></div><button onClick={()=>setWatching(v=>!v)} aria-pressed={!watching}>{watching?'Pause live watch':'Resume live watch'}</button></div>
     <p className={`btc-status ${stale?'btc-stale':''}`} role="status">{status}{observed?` · Quote age ${Math.floor(age)}s${stale?' · STALE / NOT ACTIONABLE':''}`:''}</p>
-    <OasisBrain analysis={analysis} quote={quote} history={history} current={current} stale={stale} left={left} observed={observed} watching={watching} />
     <div className="btc-round"><div><span>CURRENT ROUND</span><h3>{current?`${time(current.start)} – ${time(current.end)}`:'Waiting for an active round'}</h3><code>{current?.slug||'No expired contract will be substituted'}</code></div><div className="btc-countdown" aria-label="Time remaining">{current?`${Math.floor(left/60).toString().padStart(2,'0')}:${(left%60).toString().padStart(2,'0')}`:'--:--'}<small>{left?'remaining · device clock':'round closed / unavailable'}</small></div></div>
     <div className="btc-quotes"><article><span>{longSide||'Long outcome'} · best offer</span><strong>{price(quote.ask?.price)}</strong><small>{quote.ask?`${quote.ask.size} contracts at best offer`:'No resting offer received'}</small></article><article><span>{shortSide||'Opposite outcome'} · implied offer</span><strong>{price(quote.opposite?.price)}</strong><small>{quote.opposite?`${quote.opposite.size} contracts at opposing best bid`:'No opposing bid received'}</small></article><article><span>Long bid–ask spread</span><strong>{typeof quote.spread==='number'?`${(quote.spread*100).toFixed(2)}¢`:'Unavailable'}</strong><small>{stale?'Quote is stale':quote.open?'Open book snapshot':'Market not open'}</small></article></div>
 
+    <OasisBrain analysis={analysis} quote={quote} history={history} current={current} stale={stale} left={left} observed={observed} watching={watching} />
     <section className="btc-analysis" aria-labelledby="btc-analysis-title">
       <p className="eyebrow">ROUND ANALYSIS / PUBLIC MARKET DATA</p>
       <h3 id="btc-analysis-title">Direction lean: <span>{analysis.lean}</span></h3>

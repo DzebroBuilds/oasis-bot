@@ -5,6 +5,7 @@ import SoftAurora from './components/SoftAurora';
 import ProfileCard from './components/ProfileCard';
 import portraitUrl from './assets/profile-placeholder.svg';
 import iconUrl from './assets/iconpattern.svg';
+import './workspace-theme.css';
 
 export default function App() {
   const [reduceMotion, setReduceMotion] = useState(true);
@@ -51,8 +52,10 @@ export default function App() {
         </div>
       </section>
       <section id="workspace" className="workspace" aria-labelledby="workspace-title">
+        <nav className="workspace-nav" aria-label="Workspace navigation"><a className="workspace-wordmark" href="#workspace">OASIS <span>WORKSPACE</span></a><div><a href="#btc-title">Live market</a><a href="#brain-title">Brain</a><a href="#btc-analysis-title">Analysis</a><a href="#btc-news-title">Sources</a><a href="#all-markets">All markets</a></div></nav>
         <FiveMinuteBTC />
-        <Dashboard />
+        <div id="all-markets" className="workspace-markets"><Dashboard /></div>
+        <details className="workspace-profile"><summary>Profile preview <span>Personalize your workspace</span></summary>
         <section className="profile-preview" aria-labelledby="profile-preview-title">
           <div className="profile-preview-copy">
             <p className="eyebrow">PROFILE / COMPONENT PREVIEW</p>
@@ -87,6 +90,7 @@ export default function App() {
             />
           </div>
         </section>
+        </details>
         <footer><span>OasisWebAndAI</span><span>Paper research dashboard · No live trading</span></footer>
       </section>
     </main>
