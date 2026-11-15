@@ -13,10 +13,10 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "@hugeicons/react": "^1.1.10",
-    "@hugeicons/core-free-icons": "^4.3.3"
+    "@hugeicons/core-free-icons": "^4.3.3",
+    "ogl": "^1.0.11"
   },
   "devDependencies": {
     "vite": "^7.2.2"
   }
 }
-
