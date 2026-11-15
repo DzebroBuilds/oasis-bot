@@ -4,3 +4,12 @@
 @media(min-width:1100px){.veil-stage{height:600px}}
 @media(max-width:800px){.oasis-brain .brain-layout{grid-template-columns:1fr}.brain-verdict{position:static;margin-top:0}.veil-stage{height:500px}.veil-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.veil-frame{font-size:8px;letter-spacing:.5px}}
 @media(max-width:480px){.veil-stage{height:430px}.veil-identity{left:18px;right:18px}.veil-state{left:18px;right:18px;font-size:9px}.veil-command-head{padding:12px}.veil-quick{padding-inline:12px}.veil-toolbar{gap:8px}}
+
+/* Ambient life is decorative; telemetry labels independently report actual data. */
+.veil-alive .veil-visual{animation:oasis-breathe 14s ease-in-out infinite;transform-origin:50% 45%}
+.veil-alive .veil-kicker{animation:oasis-luminance 7s ease-in-out infinite}
+.veil-ambient-control{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0 18px}
+.veil-ambient-control span{font-size:10px;color:#a99ab9;letter-spacing:.6px}
+@keyframes oasis-breathe{0%,100%{transform:scale(1);filter:brightness(.94)}50%{transform:scale(1.035);filter:brightness(1.05)}}
+@keyframes oasis-luminance{0%,100%{opacity:.65;text-shadow:0 0 12px #b595ef44}50%{opacity:1;text-shadow:0 0 22px #b595ef99}}
+@media(prefers-reduced-motion:reduce){.veil-alive .veil-visual,.veil-alive .veil-kicker{animation:none}}
