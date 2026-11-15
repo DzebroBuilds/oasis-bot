@@ -1,7 +1,5 @@
-# OASIS DitherVeil core
+# OASIS living wallpaper
 
-Exact JS-CSS component source and CSS from https://reactbits.dev/r/DitherVeil-JS-CSS.json (retrieved November 15, 2026 UTC), mirrored in DavidHDev/react-bits public/r. The component source is unchanged. Dependency: ogl ^1.0.11. Installed by the publication workflow before build.
+Uses the unchanged React Bits DitherVeil JS-CSS source and ogl ^1.0.11. Requested palette, image, Floyd pattern, pixel size 2, radius 200, softness 0.6 and linger 1 are retained. Native wander is always on when the effect is mounted; decorative breathing and glow make the visual core ambient without requiring a cursor. Motion is decorative and does not claim model activity. Actual telemetry labels report connection state separately.
 
-The wrapper uses the requested Unsplash image, Floyd pattern, pixel size 2, ink #120f17, paper #f4f1ea, reveal radius 200, softness 0.6, linger 1. The supplied Markdown image value is normalized to its actual HTTPS URL. Additional controls adjust patterns, pixel size and reveal radius, toggle native wander and click bursts, pause rendering, and reset defaults. Reduced motion selects static artwork; WebGL/image failure does not block market controls.
-
-Briefing commands are local, deterministic explanations of connected market data, not an LLM or voice assistant. They show their observation time and round, remain explicitly labeled snapshots, and place no orders. Sources opens the existing dated research context. Missing data is disclosed. Analysis rules are unchanged; completed-round learning is not introduced by this visual change.
+All range sliders and visual tuning controls are removed. Pause/resume wallpaper remains; the Brain reduced-motion control and OS preference are respected. Historical snapshots now use Previous/Next and Follow latest buttons. Existing market command briefings are preserved. No trading or prediction logic changes.
